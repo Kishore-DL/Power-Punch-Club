@@ -1,0 +1,27 @@
+/* Registration recovery and long references remain readable at narrow widths. */
+.track-registration {max-width:900px;min-width:0;font-size:1rem;line-height:1.65}
+.track-registration h1 {font-size:clamp(1.8rem,5vw,3rem)}
+.club-public .track-registration {font-size:16px}
+.club-public .tracking-result dl {display:block;font-size:16px}
+.club-public .tracking-result :is(dt,dd) {font-size:16px}
+.club-public .copy-value label {font-size:14px}
+.club-public .copy-value input {font-size:18px}
+.club-public .success-panel p {font-size:16px;line-height:1.6}
+.club-public :is(.tracking-result,.tracking-form,.success-panel) .btn {font-size:14px}
+.tracking-form {max-width:560px}
+.club-public .track-registration label,.copy-value label {display:grid;gap:.4rem;min-width:0}
+.copy-value {display:grid;gap:.6rem;width:100%;max-width:100%;margin:1rem 0;text-align:left}
+.copy-value input,.tracking-form input {width:100%;min-width:0;box-sizing:border-box;padding:.8rem;font-size:1.1rem;border:1px solid #aaa;border-radius:8px;color:#181818;background:#fff}
+.copy-value input {font-family:monospace;font-weight:700}
+.copy-value [role=status] {font-size:.9rem;min-height:1.5em}
+.copy-value button {justify-self:start}
+.tracking-actions,.same-browser {display:flex;flex-wrap:wrap;gap:.75rem;margin:1rem 0}
+.same-browser h2 {flex-basis:100%}
+.tracking-result {min-width:0;padding:clamp(12px,3vw,28px);border:1px solid #ddd;border-radius:12px;background:#fff;color:#202027}
+.tracking-result dd {margin:0 0 .8rem;overflow-wrap:anywhere}
+.tracking-result dt {font-weight:700}
+.club-public .success-panel {font-size:1.05rem;line-height:1.65;min-width:0}
+.club-public .success-panel>code {display:block;font-size:clamp(1.1rem,3vw,1.7rem);overflow-wrap:anywhere;white-space:normal}
+.club-public .success-panel .btn,.tracking-result .btn,.tracking-form .btn {white-space:normal;max-width:100%;min-height:44px;line-height:1.4;text-align:center;overflow-wrap:anywhere}
+.tracking-result li,.tracking-result p,.payment-receipt dd {overflow-wrap:anywhere}
+@media(max-width:480px){.tracking-actions{display:grid}.tracking-actions .btn{width:100%}.club-public .success-panel{padding:16px}.copy-value button{width:100%}}

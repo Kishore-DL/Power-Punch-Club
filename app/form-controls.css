@@ -1,0 +1,12 @@
+/* Shared password and Indian mobile controls. */
+.password-field,.indian-mobile-field{position:relative;display:flex;width:100%;align-items:center;min-width:0}
+.password-field input{width:100%;min-width:0;padding-right:3.2rem!important}
+.password-field button{position:absolute;right:4px;top:50%;transform:translateY(-50%);display:grid;place-items:center;width:40px;height:40px;border:0;background:transparent;color:inherit;cursor:pointer;border-radius:8px}
+.password-field button:focus-visible{outline:2px solid currentColor;outline-offset:-3px}
+.indian-mobile-field>span{flex:none;padding:0 12px;font-weight:600}
+.indian-mobile-field{border:1px solid #d8d0cb;border-radius:8px;background:var(--input-background,#fff)}
+.indian-mobile-field input{min-width:0;width:100%;border:0!important;background:transparent!important}
+.indian-mobile-field:focus-within{outline:2px solid #a62f37;outline-offset:1px}
+
+.indian-mobile-field>span{color:#241f2a}
+.indian-mobile-field input{outline:0!important;box-shadow:none!important}

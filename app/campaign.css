@@ -1,0 +1,460 @@
+@font-face {
+  font-family: "Playfair Display";
+  src: url("/fonts/playfair-display.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 600 800;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("/fonts/instrument-sans.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+.club-public.rose-glass {
+  font-family: "Instrument Sans", "Club Sans", system-ui, sans-serif;
+}
+
+.club-public.rose-glass :is(h1, h2, h3, h4) {
+  font-family: "Playfair Display", Georgia, serif;
+  letter-spacing: -.02em;
+}
+
+.club-public.rose-glass .brand { font-family: inherit; }
+
+.club-public.rose-glass {
+  --ink: var(--theme-text);
+  --glass-ink: var(--theme-text);
+  --glass-muted: var(--theme-text);
+  --glass-surface: var(--theme-section);
+  --glass-tint: var(--theme-section);
+  --border: var(--theme-border);
+  --red: var(--theme-button);
+  --surface-text: var(--theme-text);
+  --surface-heading: var(--theme-heading);
+  --surface-link: var(--theme-link);
+  --card-border: color-mix(in srgb, var(--theme-card), var(--theme-card-text) 25%);
+  --card-highlight: color-mix(in srgb, var(--theme-card-text) 32%, transparent);
+  --card-depth: color-mix(in srgb, var(--theme-card) 70%, transparent);
+  --card-shadow: inset 0 1px 0 var(--card-highlight),
+    0 3px 0 var(--card-depth),
+    0 8px 12px -5px color-mix(in srgb, var(--theme-card) 48%, transparent),
+    0 16px 25px -10px color-mix(in srgb, var(--theme-card) 42%, transparent);
+  min-height: 100vh;
+  background: var(--theme-background);
+  color: var(--surface-text);
+}
+
+.club-public.rose-glass .site-header { background: transparent; }
+
+.club-public.rose-glass .header-inner {
+  background: var(--theme-header);
+  color: var(--theme-header-text);
+  border-color: var(--theme-border);
+}
+.rose-glass .header-inner {
+  border-color: color-mix(in srgb, var(--theme-header-text) 24%, transparent);
+  box-shadow: 0 5px 16px color-mix(in srgb, var(--theme-card) 9%, transparent);
+}
+.club-public.rose-glass .site-header nav a { color: var(--theme-header-text); }
+.club-public.rose-glass .site-header nav a:is(.active, :hover) { text-decoration: underline; text-underline-offset: 4px; }
+.rose-glass .site-header nav a.active::after { display: none; }
+.rose-glass .footer-main .brand-mark:has(img) { width: 48px; height: 48px; }
+.rose-glass .menu-button {
+  color: var(--theme-header-text);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--theme-header-text) 12%, transparent);
+}
+.rose-glass .nav-cta {
+  color: var(--theme-button-text);
+  background: var(--theme-button);
+  border-color: transparent;
+}
+.club-public.rose-glass :is(h1, h2, h3, h4) { color: var(--surface-heading); }
+.club-public.rose-glass :is(p, dt, .inline-meta, .fine) { color: var(--surface-text); }
+.club-public.rose-glass :is(.text-link, .eyebrow, .task-arrow, .home-photo svg,
+  .home-secondary li svg, .program-meta svg, .fee-card > svg, .notice svg, .empty > svg,
+  .detail-metas svg, .video-tile) {
+  color: var(--surface-link);
+}
+.rose-glass .page-heading {
+  padding-block: clamp(26px, 4vw, 55px) clamp(22px, 3vw, 40px);
+  border-color: var(--theme-border);
+}
+.rose-glass .page-heading h1 { margin: 0; line-height: 1.06; overflow-wrap: anywhere; }
+.rose-glass .page-heading p { max-width: 68ch; margin: 10px 0 0; font-size: 15px; }
+.rose-glass :is(.page-heading h1, .section-head h2) { letter-spacing: -.05em; }
+.rose-glass .mobile-label { display: none; }
+
+.rose-glass .campaign-hero {
+  --surface-text: var(--theme-hero-text);
+  --surface-heading: var(--theme-hero-text);
+  --surface-link: var(--theme-hero-text);
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  overflow: hidden;
+  border-radius: 24px;
+  min-height: 340px;
+  background: var(--theme-hero);
+  color: var(--surface-text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--theme-hero-text) 25%, transparent),
+    0 3px 0 color-mix(in srgb, var(--theme-border) 66%, transparent),
+    0 10px 24px color-mix(in srgb, var(--theme-card) 12%, transparent);
+}
+.rose-glass .campaign-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+.campaign-copy {
+  padding: clamp(24px, 5vw, 72px);
+  z-index: 1;
+  animation: campaign-enter .55s ease-out both;
+}
+.campaign-logo {
+  width: 112px;
+  height: 112px;
+  margin-bottom: 16px;
+  object-fit: contain;
+}
+.campaign-copy h1 {
+  margin: 0 0 24px;
+  font-size: clamp(40px, 6.4vw, 94px);
+  line-height: .91;
+  letter-spacing: -.075em;
+  text-wrap: balance;
+}
+.rose-glass .campaign-art {
+  justify-self: center;
+  width: 100%;
+  max-width: 460px;
+  height: clamp(320px, 36vw, 470px);
+  max-height: 460px;
+  object-fit: contain;
+  object-position: center;
+  mask-image: radial-gradient(ellipse 67% 62% at 50% 48%, #000 46%, transparent 80%);
+}
+.rose-glass .campaign-art-cutout {
+  height: clamp(330px, 38vw, 480px);
+  mask-image: linear-gradient(to right, #000 86%, transparent),
+    linear-gradient(to bottom, #000 78%, transparent);
+  mask-composite: intersect;
+}
+.campaign-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rose-glass .campaign-actions .btn {
+  min-height: 44px;
+  padding: 9px 15px;
+  letter-spacing: 0;
+  font-size: 12px;
+}
+
+.club-public.rose-glass :is(.task-link, .tournament-card, .program, .home-photo, .gallery-item,
+  .result-card, .coach, .fee-card, .home-secondary-card, .booking-card, .contact-form-card, .notice,
+  .empty, .detail-metas, .tournament-rules) {
+  --surface-text: var(--theme-card-text);
+  --surface-heading: var(--theme-card-text);
+  --surface-link: var(--theme-card-text);
+  background: var(--theme-card);
+  color: var(--surface-text);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  box-shadow: var(--card-shadow);
+}
+.rose-glass :is(.task-link, .program, .tournament-card) { transition: border-color .2s ease; }
+.rose-glass :is(.task-link, .program, .tournament-card):focus-within { border-color: var(--surface-link); }
+@media (hover: hover) {
+  .rose-glass :is(.task-link, .program, .tournament-card):hover { border-color: var(--surface-link); }
+}
+.rose-glass :is(.home-photo, .gallery-item, .tournament-card) { overflow: hidden; }
+.rose-glass :is(.home-photo, .gallery-item) :is(span, small) { background: inherit; color: var(--surface-text); }
+.rose-glass :is(.task-link-copy, .home-secondary li) small { color: var(--surface-text); }
+.rose-glass :is(.task-icon, .tournament-status) {
+  color: var(--surface-text);
+  background: color-mix(in srgb, var(--theme-card), var(--theme-card-text) 10%);
+}
+.rose-glass .program dl {
+  padding: 12px;
+  margin-block: 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--theme-card), #000 12%);
+}
+.rose-glass .program dd { overflow-wrap: anywhere; }
+.club-public.rose-glass :is(.program-art, .coach-empty, .medal-art) {
+  background: color-mix(in srgb, var(--theme-card), #000 14%);
+  color: var(--surface-link);
+}
+.club-public.rose-glass .program-art > svg { color: var(--surface-link); }
+
+.rose-glass .tournament-list {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+  padding-top: clamp(20px, 3vw, 40px);
+}
+.rose-glass .tournament-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(16px, 3vw, 36px);
+  padding: clamp(16px, 2.4vw, 28px);
+}
+.rose-glass .tournament-card:has(.tournament-card-photo) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2.25fr);
+}
+.rose-glass .tournament-card-photo {
+  justify-self: center;
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 315px;
+  object-fit: contain;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--theme-card), #000 14%);
+}
+.rose-glass .tournament-card-body {
+  display: grid;
+  justify-items: start;
+  align-content: center;
+  gap: 12px;
+  min-width: 0;
+}
+.rose-glass .tournament-status {
+  display: inline-block;
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.rose-glass .tournament-card h3 {
+  margin: 0;
+  font-size: clamp(22px, 3vw, 37px);
+  letter-spacing: -.04em;
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+.rose-glass .tournament-card-description {
+  max-width: 64ch;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.rose-glass .tournament-card .tournament-facts {
+  width: 100%;
+  padding-block: 12px;
+  border-block: 1px solid var(--card-border);
+}
+.rose-glass .tournament-card .tournament-facts svg { flex: none; }
+.rose-glass .tournament-card-action { min-width: 0; min-height: 44px; }
+
+.rose-glass .tournament-detail-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-bottom: 9px;
+}
+.rose-glass .tournament-detail-nav .badge {
+  background: var(--theme-card);
+  color: var(--theme-card-text);
+  border-radius: 6px;
+  font-size: 10px;
+}
+.rose-glass .tournament-detail {
+  grid-template-columns: minmax(0, 1fr) minmax(240px, .56fr);
+  gap: clamp(14px, 3vw, 30px);
+  align-items: start;
+  padding-top: clamp(22px, 3vw, 38px);
+}
+.rose-glass .tournament-overview { display: grid; gap: 12px; }
+.rose-glass .tournament-media {
+  border: 1px solid var(--theme-border);
+  border-radius: 12px;
+  background: var(--theme-section);
+  overflow: hidden;
+}
+.rose-glass .tournament-detail-photo {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  max-height: 350px;
+  object-fit: contain;
+  object-position: center;
+  margin: 0;
+}
+.rose-glass .tournament-photo-open {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 44px;
+  border-top: 1px solid var(--theme-border);
+  color: var(--surface-link);
+  font-size: 13px;
+  font-weight: 650;
+}
+.rose-glass .tournament-overview .detail-metas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(158px, 100%), 1fr));
+  gap: 11px 16px;
+  padding: 14px;
+}
+.rose-glass .tournament-detail .detail-meta { align-items: start; font-size: 14px; overflow-wrap: anywhere; }
+.rose-glass .tournament-detail .detail-meta svg { flex: none; margin-top: 3px; }
+.rose-glass .detail-meta-label { display: block; font-size: 11px; font-weight: 650; }
+.rose-glass .tournament-registration { padding: clamp(16px, 2.4vw, 30px); }
+.rose-glass .tournament-fee .eyebrow { margin-bottom: 8px; letter-spacing: .04em; }
+.rose-glass .tournament-fee h2 { font-size: clamp(32px, 4.2vw, 53px); }
+.rose-glass .tournament-registration hr { margin-block: 15px; border-color: var(--card-border); }
+.rose-glass .tournament-registration-actions { display: grid; gap: 8px; }
+.rose-glass .tournament-registration-actions .btn { margin: 0; }
+.rose-glass .tournament-registration > small { display: block; margin-top: 8px; }
+.rose-glass .tournament-rules { padding: 0 clamp(14px, 2vw, 26px); }
+.rose-glass .tournament-rules .detail-block { margin: 0; padding-block: 13px; }
+.rose-glass .tournament-rules .detail-block + .detail-block { border-top: 1px solid var(--card-border); }
+.rose-glass .tournament-rules .detail-block p { margin: 0; overflow-wrap: anywhere; }
+
+.club-public.rose-glass .btn.red,
+.rose-glass .filters button.selected {
+  background: var(--theme-button);
+  color: var(--theme-button-text);
+  border-color: transparent;
+}
+.club-public.rose-glass .btn.red:hover { filter: brightness(.9); }
+.club-public.rose-glass :is(.btn.pale, .btn.outline-btn) {
+  background: transparent;
+  color: var(--surface-link);
+  border: 1px solid color-mix(in srgb, var(--surface-link) 45%, transparent);
+}
+.club-public.rose-glass .tournament-card .tournament-card-action {
+  background: var(--theme-button);
+  color: var(--theme-button-text);
+  border-color: transparent;
+}
+.rose-glass .filters button {
+  background: var(--theme-section);
+  color: var(--theme-text);
+  border-color: var(--theme-border);
+}
+.club-public.rose-glass :is(.training-band, .modal, .checkout-summary, .about-photo) {
+  background: var(--theme-section);
+}
+.rose-glass .training-band { border-block: 1px solid var(--theme-border); }
+.rose-glass .checkout-summary {
+  --surface-text: var(--theme-text);
+  --surface-heading: var(--theme-heading);
+  --surface-link: var(--theme-link);
+  background: var(--theme-section);
+  color: var(--surface-text);
+  border-color: var(--theme-border);
+}
+.rose-glass .checkout-summary > strong { color: var(--surface-heading); }
+.rose-glass .checkout-summary small { color: var(--surface-text); }
+.rose-glass .modal { color: var(--theme-text); border: 1px solid var(--theme-border); border-radius: 18px; }
+.rose-glass .registration-form .team-row label { min-width: 0; margin: 0; }
+.rose-glass .registration-form .team-row input { min-width: 0; width: 100%; }
+.rose-glass .registration-form :is(input:not([type=checkbox]), textarea, select) {
+  background: var(--theme-background);
+  color: var(--theme-text);
+  border-color: var(--theme-border);
+}
+.rose-glass .registration-form :is(input, textarea)::placeholder {
+  color: color-mix(in srgb, var(--theme-text) 73%, var(--theme-background));
+}
+.rose-glass .registration-form .check-label a { color: var(--surface-link); }
+.rose-glass .calendar-filter input { background: var(--theme-background); color: var(--theme-text); }
+.rose-glass .contact-row svg, .rose-glass .calendar-event > svg { color: var(--surface-link); }
+.rose-glass .lightbox p { color: white; }
+.club-public.rose-glass footer {
+  --surface-text: var(--theme-footer-text);
+  --surface-heading: var(--theme-footer-text);
+  --surface-link: var(--theme-footer-text);
+  color: var(--surface-text);
+  background: var(--theme-footer);
+  border-top: 1px solid var(--theme-border);
+}
+.club-public.rose-glass footer :is(a, small, .text-link, .footer-bottom) { color: var(--surface-text); }
+.rose-glass :is(.footer-bottom, .footer-main > div:last-child) {
+  border-color: color-mix(in srgb, var(--theme-footer-text) 25%, transparent);
+}
+.theme-editor { margin-block: 24px; padding: 18px; border: 1px solid #ded0c9; border-radius: 12px; }
+.theme-editor legend { font-weight: 700; padding-inline: 6px; }
+.theme-editor > button { margin-top: 14px; }
+
+@keyframes campaign-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .campaign-copy { animation: none; }
+  .rose-glass :is(.btn, .task-link, .program, .tournament-card) { transition: none; }
+  .rose-glass .btn:hover { transform: none; }
+}
+
+.club-public.rose-glass .readable-copy {
+  max-width: 66ch;
+  font-size: .9375rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.club-public.rose-glass .readable-copy > :is(p, ul, ol) {
+  margin: 0;
+  font-size: inherit;
+  line-height: inherit;
+}
+.club-public.rose-glass .readable-copy > :is(ul, ol) {
+  display: block;
+  padding-inline-start: 1.3em;
+  list-style: revert;
+}
+.club-public.rose-glass .readable-copy li {
+  display: list-item;
+  padding: 0;
+  border: 0;
+}
+.club-public.rose-glass .readable-copy > * + *,
+.club-public.rose-glass .readable-copy li + li { margin-top: .45em; }
+.club-public.rose-glass .readable-copy strong {
+  display: inline;
+  color: var(--surface-heading);
+  font-size: inherit;
+  font-weight: 700;
+}
+.rose-glass .announcement-copy {
+  margin-bottom: 14px;
+  padding: 12px 14px;
+  border-inline-start: 3px solid color-mix(in srgb, var(--surface-text) 50%, transparent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface-text) 8%, transparent);
+}
+.rose-glass .calendar-event > div { min-width: 0; }
+.rose-glass .calendar-event h3 { margin: 4px 0 8px; overflow-wrap: anywhere; }
+
+.club-public.rose-glass.hero-pattern-theme :is(.task-link, .tournament-card, .program, .home-photo,
+  .gallery-item, .result-card, .coach, .fee-card, .home-secondary-card, .booking-card, .contact-form-card,
+  .notice, .empty, .detail-metas, .tournament-rules, footer) {
+  background-image: linear-gradient(rgb(13 9 24 / 28%), rgb(13 9 24 / 42%)),
+    url("/hero-purple-background.webp?v=3");
+  background-position: center;
+  background-size: cover;
+}
+
+.tournament-registration-option {
+  min-width: 0;
+  border: 0;
+  padding: 10px 0 0;
+  margin: 14px 0 0;
+}
+.tournament-registration-option legend { padding: 0; font-size: .875rem; font-weight: 650; }
+.payment-receipt dd, .success-panel code { overflow-wrap: anywhere; }

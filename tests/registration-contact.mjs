@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+import {normaliseRegistrationEmail,validRegistrationEmail,registrationContactError,normaliseIndianMobile,indianMobileInternational} from '../lib/registration-contact.mjs';
+const contact={name:'Test participant',email:'person@example.invalid',phone:'+91 99999 99999'};
+assert.equal(registrationContactError(contact),'');
+assert.equal(normaliseRegistrationEmail('\u00a0 PERSON+club@example.com\u00a0'),'PERSON+club@example.com');
+for(const email of ['person@example.com','PERSON+club@example.com',' person@example.com ','\u00a0person@example.com\u00a0'])assert.equal(validRegistrationEmail(email),true);
+for(const email of ['',null,42,'person @example.com','person@example','person@@example.com'])assert.equal(validRegistrationEmail(email),false);
+assert.match(registrationContactError({...contact,email:'invalid'}),/^Enter a valid email address/);
+assert.match(registrationContactError({...contact,phone:'123'}),/^Enter a valid phone number/);
+assert.match(registrationContactError({...contact,name:'  '}),/^Enter a participant \/ contact name/);
+assert.match(registrationContactError({...contact,name:'a'.repeat(121)}),/name/);
+assert.match(registrationContactError({...contact,email:'a'.repeat(255)+'@example.com'}),/email/);
+assert.match(registrationContactError({...contact,phone:'letters9999999999'}),/phone/);
+console.log('Registration contact tests passed: email whitespace normalization, valid plus/case addresses, invalid email rejection and separate name/email/phone errors.');
+
+for(const phone of ['','0','9'.repeat(9),'9'.repeat(11),'letters9999999999','99999-99999','??????????','+449999999999','919999999999'])assert.equal(normaliseIndianMobile(phone),'',phone);
+for(const phone of ['0000000000','9999999999','+919999999999','+91 99999 99999'])assert.equal(normaliseIndianMobile(phone),phone.includes('999')?'9999999999':'0000000000');
+assert.equal(indianMobileInternational('9999999999'),'+919999999999');
+assert.equal(indianMobileInternational('+91 99999 99999'),'+919999999999');
+console.log('Indian mobile tests passed: exact ASCII digits, prefix normalization, invalid length/symbol/unicode rejection and payment boundary compatibility.');
