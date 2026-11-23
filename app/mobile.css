@@ -262,7 +262,7 @@
     transform: none;
     background: color-mix(in srgb, var(--theme-card), #000 14%);
   }
-  .rose-glass .tournament-card-photo { border-radius: 8px; }
+  .rose-glass .tournament-card .tournament-card-photo { aspect-ratio: auto; border-radius: 8px; }
 
   .rose-glass .training-grid .program:last-child:nth-child(odd) { grid-column: auto; }
   .rose-glass .training-grid .program .program-art {

@@ -116,6 +116,9 @@
   object-fit: cover;
   object-position: center;
 }
+/* A display:contents picture promotes its children into the hero grid.
+   The source supplies image candidates and must never occupy a grid cell. */
+.rose-glass .campaign-hero picture > source { display: none; }
 .campaign-copy {
   padding: clamp(24px, 5vw, 72px);
   z-index: 1;
@@ -189,6 +192,12 @@
   background: color-mix(in srgb, var(--theme-card), #000 12%);
 }
 .rose-glass .program dd { overflow-wrap: anywhere; }
+@media (min-width: 801px) {
+  .rose-glass .training-grid .program { display: flex; flex-direction: column; }
+  .rose-glass .training-grid .program-art { flex-shrink: 0; }
+  .rose-glass .training-grid .program-body { display: flex; flex-direction: column; flex: 1; }
+  .rose-glass .training-grid .program-actions { margin-top: auto; }
+}
 .club-public.rose-glass :is(.program-art, .coach-empty, .medal-art) {
   background: color-mix(in srgb, var(--theme-card), #000 14%);
   color: var(--surface-link);
@@ -214,7 +223,8 @@
 .rose-glass .tournament-card-photo {
   justify-self: center;
   width: 100%;
-  aspect-ratio: 1;
+  height: auto;
+  aspect-ratio: auto;
   max-width: 315px;
   object-fit: contain;
   border-radius: 12px;
