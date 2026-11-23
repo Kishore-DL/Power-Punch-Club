@@ -1,9 +1,12 @@
+import type {ClubContent,ClubEntry,LinkProps} from '../lib/club-types';
+import type {ComponentType,ReactNode} from 'react';
+import AssetImage from './asset-image';
 import ReadableCopy from './readable-copy';
 import { defaultClubLogo } from '../lib/defaults';
 import { ArrowRight, ArrowUpRight, CalendarDays, Image as ImageIcon, MessageCircle, Target, Trophy } from 'lucide-react';
 import TournamentCard from './tournament-card';
 
-export default function ClubHome({ header, content, Link, program, formatFee, formatDate }: any) {
+export default function ClubHome({ header, content, Link, program, formatFee, formatDate }: {header:ReactNode;content:ClubContent;Link:ComponentType<LinkProps>;program:(item:ClubEntry,index:number)=>ReactNode;formatFee:(fee:number)=>string;formatDate:(date:string)=>string}) {
   const { branding, tournaments, training, gallery, achievements, announcements } = content;
   const heroPhoto = !branding.hero || ['/dojo-rose.webp', '/dojo-portrait.webp'].includes(branding.hero)
     ? '/power-punch-banner.webp'
@@ -12,11 +15,11 @@ export default function ClubHome({ header, content, Link, program, formatFee, fo
     ? '/hero-purple-background.webp?v=3'
     : branding.heroBackdrop;
   const isClubBanner = heroPhoto === '/power-punch-banner.webp';
-  const listedEvents = tournaments.filter((event: any) => event.status !== 'draft');
-  const event = listedEvents.find((item: any) => item.status === 'open') || listedEvents[0];
+  const listedEvents = tournaments.filter((event) => event.status !== 'draft');
+  const event = listedEvents.find(item=>item.presentationOnly&&item.status==='open') || listedEvents.find((item) => item.status === 'open') || listedEvents[0];
   const eventPath = event ? '/tournaments/' + event.id : '/tournaments';
-  const photos = [...gallery.filter((item: any) => item.featured), ...gallery.filter((item: any) => !item.featured)]
-    .filter((item: any) => item.type === 'photo').slice(0, 3);
+  const photos = [...gallery.filter((item) => item.featured), ...gallery.filter((item) => !item.featured)]
+    .filter((item) => item.type === 'photo').slice(0, 3);
 
   const shortcuts = [
     { title: 'Tournament registration', shortTitle: event?.status === 'open' ? 'Register' : 'Tournaments', hint: 'Dates, fees and registration', href: eventPath, icon: Trophy },
@@ -29,10 +32,10 @@ export default function ClubHome({ header, content, Link, program, formatFee, fo
       {header}
       <section className="campaign-hero wrap">
         {branding.heroBackdropMode === 'photo' && heroBackdrop && (
-          <img className="campaign-backdrop" src={heroBackdrop} alt="" decoding="async" />
+          <AssetImage className="campaign-backdrop" src={heroBackdrop} alt="" decoding="async" />
         )}
         <div className="campaign-copy">
-          <img className="campaign-logo" src={branding.logo || defaultClubLogo} alt="" width={112} height={112} />
+          <AssetImage className="campaign-logo" src={branding.logo || defaultClubLogo} alt="" width={112} height={112} />
           <h1>{isClubBanner ? branding.name || 'Power Punch Club' : branding.heroTitle || branding.name}</h1>
           {!isClubBanner && branding.heroText && <p>{branding.heroText}</p>}
           <div className="campaign-actions">
@@ -43,7 +46,7 @@ export default function ClubHome({ header, content, Link, program, formatFee, fo
             </Link>
           </div>
         </div>
-        <img className={isClubBanner ? "campaign-art campaign-art-cutout" : "campaign-art"} src={isClubBanner ? '/karate-cutout.webp?v=2' : heroPhoto}
+        <AssetImage className={isClubBanner ? "campaign-art campaign-art-cutout" : "campaign-art"} src={isClubBanner ? '/karate-cutout.webp?v=2' : heroPhoto}
           srcSet={isClubBanner ? '/karate-cutout-mobile.webp?v=2 480w, /karate-cutout.webp?v=2 861w' : undefined}
           sizes={isClubBanner ? '(max-width: 800px) 49vw, 861px' : undefined}
           alt="" fetchPriority="high" style={!isClubBanner ? { objectPosition: branding.heroPosition } : undefined} />
@@ -95,8 +98,8 @@ export default function ClubHome({ header, content, Link, program, formatFee, fo
         </div>
         {photos.some((photo: {album?:string})=>photo.album==='Karate worldwide')&&<p className="gallery-source-note">Karate worldwide: photographs from other dojos and competitions.</p>}
         {photos.length ? <div className="home-photo-grid">
-          {photos.map((photo: any) => <Link key={photo.id} to="/gallery" className="home-photo">
-            <img src={photo.url} alt={photo.alt||photo.title} width={photo.width} height={photo.height} loading="lazy" decoding="async"/><span>{photo.title}<ArrowUpRight size={16}/></span>
+          {photos.map((photo) => <Link key={photo.id} to="/gallery" className="home-photo">
+            <AssetImage src={photo.url} alt={photo.alt||photo.title} width={photo.width} height={photo.height} loading="lazy" decoding="async"/><span>{photo.title}<ArrowUpRight size={16}/></span>
           </Link>)}
         </div> : <div className="empty"><ImageIcon size={24}/><p>No photos added yet.</p></div>}
       </section>
@@ -104,14 +107,14 @@ export default function ClubHome({ header, content, Link, program, formatFee, fo
       <section className="wrap home-secondary">
         <div className="home-secondary-card">
           <h2>Achievements</h2>
-          {achievements.length ? <ul>{achievements.slice(0, 3).map((item: any) => <li key={item.id}><Trophy size={17}/><div><strong>{item.title}</strong><small>{item.student}</small></div></li>)}</ul>
+          {achievements.length ? <ul>{achievements.slice(0, 3).map((item) => <li key={item.id}><Trophy size={17}/><div><strong>{item.title}</strong><small>{item.student}</small></div></li>)}</ul>
             : <p>No achievements listed yet.</p>}
           <Link to="/achievements" className="text-link">All achievements <ArrowRight size={17}/></Link>
         </div>
         <div className="home-secondary-card">
           <h2>Announcements</h2>
           {branding.announcement && <ReadableCopy text={branding.announcement} className="announcement-copy" />}
-          {announcements.length ? <ul>{announcements.slice(0, 3).map((item: any) => <li key={item.id}><CalendarDays size={17}/><div><strong>{item.title}</strong><small>{formatDate(item.date)}</small></div></li>)}</ul>
+          {announcements.length ? <ul>{announcements.slice(0, 3).map((item) => <li key={item.id}><CalendarDays size={17}/><div><strong>{item.title}</strong><small>{formatDate(item.date||'')}</small></div></li>)}</ul>
             : <p>No announcements yet.</p>}
           <Link to="/calendar" className="text-link">Event calendar <ArrowRight size={17}/></Link>
         </div>

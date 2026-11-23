@@ -1,4 +1,8 @@
-import {localMockTarget} from '../../../lib/local-mock-content.mjs';
+import type {RegistrationInput,VerificationInput,ProviderPayment,ContentUpdate} from '../../../lib/api-types';
+import type {Registration} from '../../../lib/mongodb';
+import type {RegistrationData} from '../../../lib/club-types';
+import {MongoServerError} from 'mongodb';
+import {localMockTarget,mockTournamentId,publishedPresentation} from '../../../lib/local-mock-content.mjs';
 import {upiQrDownload,adminPaymentProof} from '../../../lib/payment-images';
 import { normaliseRegistrationEmail, validRegistrationEmail, registrationContactError, normaliseIndianMobile, indianMobileInternational } from '../../../lib/registration-contact.mjs';
 import { persistRegistration, ensureTracking, openTrackingCode, normaliseNumber, normaliseCode, trackingDigest, trackingLimits, TrackingLimitError, trackingSession, authorisedRegistration, trackingSessionId } from '../../../lib/registration-identity.mjs';
@@ -15,7 +19,7 @@ import { emailConfiguration, adminOutboxHistory, retryAdminNotifications } from 
 import { clientPreview, getContent, database, runtime, log, hmac, safeEqual, notifyRegistration, notifyNewRequest, rateLimit } from '../../../lib/server';
 import { contentKeys } from '../../../lib/defaults';
 export const dynamic='force-dynamic';
-const json=(v:any,status=200)=>Response.json(v,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
+const json=(v:unknown,status=200)=>Response.json(v,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const fail=(m:string,s=400)=>json({error:m},s);
 async function recordCapturedPayment(db: ReturnType<typeof database>, id: string, paymentId: string) {
   const updated=await registrations(db).findOneAndUpdate({_id:id,payment_status:{$ne:'paid'}},
@@ -24,10 +28,10 @@ async function recordCapturedPayment(db: ReturnType<typeof database>, id: string
   if(row)await notifyRegistration('payment-confirmed',row);
 }
 
-async function requestObject(req:Request):Promise<any>{
+async function requestObject<T extends object=Record<string,unknown>>(req:Request):Promise<T>{
  const value=await req.json();
  if(!value||typeof value!=='object'||Array.isArray(value))throw new SyntaxError('Expected a JSON object');
- return value;
+ return value as T;
 }
 async function handle(req:Request){
  const url=new URL(req.url),p=url.pathname.slice(5),e=runtime();
@@ -82,41 +86,41 @@ async function handle(req:Request){
   return new Response(Buffer.from(bytes),{headers:{'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="'+filename+(receipt?'-receipt':'-registration')+'.pdf"','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
  }
  if(p==='register'&&req.method==='POST'){
-  await rateLimit(req,'register');const b:any=await requestObject(req);if(typeof b.name!=='string'||(typeof b.email!=='string'&&!(b.email===undefined&&localMockTarget(b.target)))||typeof b.phone!=='string'||(b.target!==undefined&&typeof b.target!=='string'))return fail('Enter valid registration details');if(b.answers!==undefined&&(!b.answers||typeof b.answers!=='object'||Array.isArray(b.answers)))return fail('Invalid form answers');if(b.website)return fail('Unable to submit');b.email=normaliseRegistrationEmail(b.email);b.name=b.name.trim();b.phone=b.phone.trim();const previewContent=localMockTarget(b.target)?await getContent():undefined;const previewEvent=previewContent?.tournaments.find((item:{id:string;previewEmailOptional?:boolean})=>item.id===b.target);const contactError=registrationContactError(b,{emailOptional:localMockTarget(b.target)&&previewEvent?.previewEmailOptional===true});if(contactError)return fail(contactError);b.phone=normaliseIndianMobile(b.phone);if(b.consent!==true)return fail('Please accept the privacy policy');if(!['trial','enquiry','tournament','team'].includes(b.kind))return fail('Invalid registration type');const c=previewContent||await getContent();
+  await rateLimit(req,'register');const b=await requestObject<RegistrationInput>(req);if(typeof b.name!=='string'||(typeof b.email!=='string'&&!(b.email===undefined&&localMockTarget(b.target)))||typeof b.phone!=='string'||(b.target!==undefined&&typeof b.target!=='string'))return fail('Enter valid registration details');if(b.answers!==undefined&&(!b.answers||typeof b.answers!=='object'||Array.isArray(b.answers)))return fail('Invalid form answers');if(b.website)return fail('Unable to submit');b.email=normaliseRegistrationEmail(b.email);b.name=b.name.trim();b.phone=b.phone.trim();const previewContent=b.target===mockTournamentId?await getContent():undefined;const previewEvent=previewContent?.tournaments.find((item:{id:string;previewEmailOptional?:boolean})=>item.id===b.target);const contactError=registrationContactError(b,{emailOptional:(localMockTarget(b.target)||publishedPresentation(previewEvent))&&previewEvent?.previewEmailOptional===true});if(contactError)return fail(contactError);b.phone=normaliseIndianMobile(b.phone);if(b.consent!==true)return fail('Please accept the privacy policy');if(!['trial','enquiry','tournament','team'].includes(b.kind))return fail('Invalid registration type');const c=previewContent||await getContent();
   if(clientPreview())return json({previewOnly:true,amount:0});
   const isTournament=['tournament','team'].includes(b.kind);
-  let amount=0,target=b.target||'',capacity=1000000;
+  let amount=0,capacity=1000000;const target=b.target||'';
   let paymentMethod='free';
   let manualProof:Awaited<ReturnType<typeof validateManualProof>>|undefined;
   if(typeof b.id!=='string'||! /^[a-zA-Z0-9-]{20,80}$/.test(b.id))return fail('Invalid submission identifier');
   const token=String(b.token||'');
   if(!/^[a-zA-Z0-9-]{30,80}$/.test(token))return fail('Invalid registration token');
-  const reply=async(input:any, duplicate=false)=>{
+  const reply=async(input:Registration, duplicate=false)=>{
     const row=await ensureTracking(db,input);
     const number=row.data.registrationNumber||registrationSerial(b.id);
     return json({
     id:b.id,token,amount:row.amount,duplicate,trackingCode:openTrackingCode(row),
     registrationNumber:number,serial:row.amount===0&&['tournament','team'].includes(row.kind)?number:undefined,
-    ...publicPaymentState(row as any),
+    ...publicPaymentState(row),
     });
   };
   const existing=await registrations(db).findOne({_id:b.id});
   if(existing){if(existing.token!==token)return fail('Submission already exists',409);return reply(existing,true);}
-  if(isTournament){const event=c.tournaments.find((x:any)=>x.id===target);if(!event||event.status!=='open')return fail('This tournament is not open for registration');if(event.deadline&&new Date(event.deadline+'T23:59:59+05:30').getTime()<Date.now())return fail('Registration has closed');const choices=registrationChoices(event);
+  if(isTournament){const event=c.tournaments.find((x)=>x.id===target);if(!event||event.status!=='open')return fail('This tournament is not open for registration');if(event.deadline&&new Date(event.deadline+'T23:59:59+05:30').getTime()<Date.now())return fail('Registration has closed');const choices=registrationChoices(event);
     const choice=b.registrationChoice??(choices.length===1?choices[0]:undefined);
-    if(!choices.includes(choice))return fail('Choose an available registration option.');
+    if(!choice||!choices.includes(choice))return fail('Choose an available registration option.');
     capacity=Number(event.capacity)||1000000;let count=1;if(b.kind==='team'){if(!Array.isArray(b.team)||b.team.length<1||b.team.length>50)return fail('Add between 1 and 50 team participants');for(const member of b.team)if(!member||typeof member.name!=='string'||!member.name.trim()||member.name.length>120||!Number.isInteger(Number(member.age))||Number(member.age)<1||Number(member.age)>120||typeof member.belt!=='string'||!member.belt.trim()||member.belt.length>100)return fail('Complete every participant name, age and belt');count=b.team.length}paymentMethod=choice==='manual'?'manual':choice==='paid'?'razorpay':'free';amount=choice!=='free'?Math.round(Number(event.fee||0)*100)*count:0;if(choice!=='free'&&amount<=0)return fail('Invalid fee configuration');if(choice==='manual'){
       if(!event.manualQrImage)return fail('The club has not configured the UPI QR code. Please contact the club.');
       try{manualProof=await validateManualProof(b.manualProof,token)}catch(error){return fail((error as Error).message)}
       if(manualProof.transactionId&&await registrations(db).findOne({'data.manualTransactionKey':manualProof.transactionId.toUpperCase()}))return fail('This transaction ID has already been submitted. Contact the club if you need help.',409);
-    }const fields=c.forms.find((x:any)=>x.id===event.formId)?.fields||[];for(const field of fields)if(field.required&&!String(b.answers?.[field.id]??'').trim())return fail('Complete '+field.label)}
-  if(['trial','enquiry'].includes(b.kind)){const formId=b.kind==='trial'?c.branding.trialFormId:c.branding.enquiryFormId;for(const field of c.forms.find((x:any)=>x.id===formId)?.fields||[])if(field.required&&!String(b.answers?.[field.id]??'').trim())return fail('Complete '+field.label)}
+    }const fields=c.forms.find((x)=>x.id===event.formId)?.fields||[];for(const field of fields)if(field.required&&!String(b.answers?.[field.id]??'').trim())return fail('Complete '+field.label)}
+  if(['trial','enquiry'].includes(b.kind)){const formId=b.kind==='trial'?c.branding.trialFormId:c.branding.enquiryFormId;for(const field of c.forms.find((x)=>x.id===formId)?.fields||[])if(field.required&&!String(b.answers?.[field.id]??'').trim())return fail('Complete '+field.label)}
   if(b.expectedAmount!==undefined&&b.expectedAmount!==amount)return fail('The entry fee changed. Refresh the page and check the amount before submitting.',409);
   if(amount<0||amount>100000000||!Number.isSafeInteger(amount))return fail('Invalid fee configuration');
-  const receiptEvent=['tournament','team'].includes(b.kind)?c.tournaments.find((item:any)=>item.id===target):undefined;
+  const receiptEvent=['tournament','team'].includes(b.kind)?c.tournaments.find((item)=>item.id===target):undefined;
   const formId=receiptEvent?.formId||(b.kind==='trial'?c.branding.trialFormId:b.kind==='enquiry'?c.branding.enquiryFormId:undefined);
-  const formFields=c.forms.find((form:any)=>form.id===formId)?.fields||[];
-  const answers=Object.fromEntries(formFields.flatMap((f:any)=>Object.hasOwn(b.answers||{},f.id)?[[f.id,b.answers[f.id]]]:[]));
+  const formFields=c.forms.find((form)=>form.id===formId)?.fields||[];
+  const answers=Object.fromEntries(formFields.flatMap((f)=>Object.hasOwn(b.answers||{},f.id)?[[f.id,b.answers![f.id]]]:[]));
   for(const f of formFields){
     const val=answers[f.id];
     if(val===undefined||val==='')continue;
@@ -134,24 +138,25 @@ async function handle(req:Request){
        (f.type==='photo'&&!object.httpMetadata?.contentType?.startsWith('image/')))
       return fail('Please upload a valid file for '+f.label);
   }
-  const receiptFields=Object.fromEntries(formFields.map((field:any)=>[field.id,{label:field.label,type:field.type,showOnReceipt:field.showOnReceipt,staffDownload:field.staffDownload}]));
-  const detail={answers,team:b.team||[],message:String(b.message||'').slice(0,5000),consent:true,
+  const receiptFields=Object.fromEntries(formFields.map((field)=>[field.id,{label:field.label,type:field.type,showOnReceipt:field.showOnReceipt,staffDownload:field.staffDownload}]));
+  const detail:RegistrationData={answers,team:b.team||[],message:String(b.message||'').slice(0,5000),consent:true,
     paymentMethod,
+    ...(receiptEvent?.presentationOnly===true?{presentationOnly:true}:{}),
     ...(receiptEvent?{manualQrImage:receiptEvent.manualQrImage,manualPayee:receiptEvent.manualPayee,manualUpiId:receiptEvent.manualUpiId,manualInstructions:receiptEvent.manualInstructions}:{}),
     ...(manualProof?{manualProof,manualProofRevision:crypto.randomUUID(),...(manualProof.transactionId?{manualTransactionKey:manualProof.transactionId.toUpperCase()}:{}),manualSubmittedAt:new Date().toISOString()}:{}),
     receiptTitle:receiptEvent?.title,receiptClub:c.branding.name,receiptLogo:c.branding.logo,receiptFields,receiptFieldOrder:formFields.map((field:{id:string})=>field.id),
     receiptHeading:receiptEvent?.receiptHeading,receiptNote:receiptEvent?.receiptNote,confirmationHeading:receiptEvent?.confirmationHeading};
   if(JSON.stringify(detail).length>50000)return fail('Registration too large');
-  let inserted=false;let row:any;
+  let inserted=false;let row:Registration|undefined;
   try{
     const result=await persistRegistration(db,{
       _id:b.id,id:b.id,token,kind:b.kind,target,name:b.name.trim(),email:b.email.toLowerCase(),phone:b.phone,
       data:detail,status:'new',notes:'',amount,payment_status:paymentMethod==='manual'?'manual_pending':amount?'unpaid':'not_required',created:new Date().toISOString(),
     },receiptEvent?.registrationPrefix??c.branding.registrationPrefix,receiptEvent?.registrationSuffix??c.branding.registrationSuffix,
-    (candidate:any)=>reserveRegistration(db,candidate,isTournament?(b.kind==='team'?b.team.length:1):0,capacity));
+    (candidate:Registration)=>reserveRegistration(db,candidate,isTournament?(b.kind==='team'?b.team!.length:1):0,capacity));
     inserted=result.inserted;row=result.row;
   }catch(error){
-    if((error as any).code===11000&&(error as any).keyPattern?.['data.manualTransactionKey'])return fail('This transaction ID has already been submitted.',409);
+    if(error instanceof MongoServerError&&error.code===11000&&error.keyPattern?.['data.manualTransactionKey'])return fail('This transaction ID has already been submitted.',409);
     throw error;
   }
   if(!inserted){
@@ -159,7 +164,7 @@ async function handle(req:Request){
     if(existing){if(existing.token!==token)return fail('Submission already exists',409);return reply(existing,true);}
     if(manualProof?.transactionId&&await registrations(db).findOne({'data.manualTransactionKey':manualProof.transactionId.toUpperCase()}))return fail('This transaction ID has already been submitted.',409);
     return fail('This event has reached capacity',409);
-  }await notifyNewRequest(row);return reply(row)
+  }if(!row)return fail('Registration could not be saved',500);await notifyNewRequest(row);return reply(row)
  }
  if(p==='registration-status'&&req.method==='POST'){
   await rateLimit(req,'status');
@@ -173,7 +178,7 @@ async function handle(req:Request){
     tournament:details.title,fields:details.fields,team:details.team,amount:row.amount,
     transactionReference:row.data.paymentMethod==='manual'?row.data.manualProof?.transactionId||'':row.payment_id||'',
     rejectionReason:row.status==='rejected'?row.data.participantRejectionReason||'Please contact the club.':'',
-    event:row.data.paymentMethod==='manual'?(()=>{const event=(row as any).data;return {id:row.target,manualQrImage:event.manualQrImage,manualPayee:event.manualPayee,manualUpiId:event.manualUpiId,manualInstructions:event.manualInstructions,...(localMockTarget(row.target)?{previewQrNonPayable:true}:{} )};})():undefined});
+    event:row.data.paymentMethod==='manual'?(()=>{const event=row.data;return {id:row.target,manualQrImage:event.manualQrImage,manualPayee:event.manualPayee,manualUpiId:event.manualUpiId,manualInstructions:event.manualInstructions,...((localMockTarget(row.target)||row.data.presentationOnly===true)?{previewQrNonPayable:true}:{} )};})():undefined});
  }
  if(p==='manual-proof'&&req.method==='POST'){
   await rateLimit(req,'register');
@@ -262,15 +267,15 @@ async function handle(req:Request){
   return json({...receiptDetails(row,await getContent()),documentAuth:{id,token}});
  }
  if(p==='verify'&&req.method==='POST'){
-  if(!e.RAZORPAY_KEY_SECRET)return fail('Payments are not configured',503);const b:any=await requestObject(req),r:any=await authorisedRegistration(db,req,b);if(!r||!r.order_id||r.order_id!==b.razorpay_order_id)return fail('Order does not match');const signature=await hmac(e.RAZORPAY_KEY_SECRET,r.order_id+'|'+b.razorpay_payment_id);if(!safeEqual(signature,String(b.razorpay_signature||'')))return fail('Payment verification failed',403);const result=await fetch('https://api.razorpay.com/v1/payments/'+encodeURIComponent(b.razorpay_payment_id),{headers:{Authorization:'Basic '+btoa(e.RAZORPAY_KEY_ID+':'+e.RAZORPAY_KEY_SECRET)},signal:AbortSignal.timeout(10000)});if(!result.ok)return fail('Unable to confirm payment. Please contact the club.',502);const payment:any=await result.json();if(payment.order_id!==r.order_id||payment.amount!==r.amount||payment.currency!=='INR')return fail('Payment details do not match',403);if(payment.status!=='captured')return json({pending:true,message:'Payment authorised. Awaiting capture confirmation.'});await recordCapturedPayment(db,r.id,payment.id);return json({paid:true})
+  if(!e.RAZORPAY_KEY_SECRET)return fail('Payments are not configured',503);const b=await requestObject<VerificationInput>(req),r=await authorisedRegistration(db,req,b);if(!r||!r.order_id||r.order_id!==b.razorpay_order_id)return fail('Order does not match');const signature=await hmac(e.RAZORPAY_KEY_SECRET,r.order_id+'|'+b.razorpay_payment_id);if(!safeEqual(signature,String(b.razorpay_signature||'')))return fail('Payment verification failed',403);const result=await fetch('https://api.razorpay.com/v1/payments/'+encodeURIComponent(b.razorpay_payment_id),{headers:{Authorization:'Basic '+btoa(e.RAZORPAY_KEY_ID+':'+e.RAZORPAY_KEY_SECRET)},signal:AbortSignal.timeout(10000)});if(!result.ok)return fail('Unable to confirm payment. Please contact the club.',502);const payment=await result.json() as ProviderPayment;if(payment.order_id!==r.order_id||payment.amount!==r.amount||payment.currency!=='INR')return fail('Payment details do not match',403);if(payment.status!=='captured')return json({pending:true,message:'Payment authorised. Awaiting capture confirmation.'});await recordCapturedPayment(db,r.id,payment.id);return json({paid:true})
  }
  if(p==='webhook'&&req.method==='POST'){
-  if(!e.RAZORPAY_WEBHOOK_SECRET)return fail('Webhook not configured',503);const raw=await req.text();if(!safeEqual(await hmac(e.RAZORPAY_WEBHOOK_SECRET,raw),req.headers.get('x-razorpay-signature')||''))return fail('Invalid signature',403);const event=JSON.parse(raw),pay=event.payload?.payment?.entity;if(event.event==='payment.captured'&&pay){const r:any=await registrations(db).findOne({order_id:String(pay.order_id||'')});if(r&&r.amount===pay.amount&&pay.currency==='INR')await recordCapturedPayment(db,r.id,pay.id)}return json({received:true})
+  if(!e.RAZORPAY_WEBHOOK_SECRET)return fail('Webhook not configured',503);const raw=await req.text();if(!safeEqual(await hmac(e.RAZORPAY_WEBHOOK_SECRET,raw),req.headers.get('x-razorpay-signature')||''))return fail('Invalid signature',403);const event=JSON.parse(raw),pay=event.payload?.payment?.entity;if(event.event==='payment.captured'&&pay){const r=await registrations(db).findOne({order_id:String(pay.order_id||'')});if(r&&r.amount===pay.amount&&pay.currency==='INR')await recordCapturedPayment(db,r.id,pay.id)}return json({received:true})
  }
  if(!admin)return fail('Admin access required',403);
  if(p==='manual-payment-review'&&req.method==='POST'){
   const b=await requestObject(req);
-  if(typeof b.id!=='string'||!['verify','reject'].includes(b.action)||typeof b.expectedRevision!=='string')return fail('Invalid payment review');
+  if(typeof b.id!=='string'||(b.action!=='verify'&&b.action!=='reject')||typeof b.expectedRevision!=='string')return fail('Invalid payment review');
   const row=await registrations(db).findOne({_id:b.id,'data.paymentMethod':'manual'});
   if(!row)return fail('Payment not found',404);
   if(row.payment_status==='paid'&&b.action==='verify'){return json({saved:true,record:visibleRegistration(row)});}
@@ -283,19 +288,19 @@ async function handle(req:Request){
   await log(session!.account.username,`Manual payment ${b.action}: ${row.id}`);
   return json({saved:true,record:visibleRegistration(updated)});
  }
- if(p==='content'&&req.method==='PUT'){const b:any=await requestObject(req);if(!contentKeys.includes(b.key))return fail('Unknown content section');if(JSON.stringify(b.value).length>200000)return fail('Content too large');if(['branding','pages'].includes(b.key)){if(!b.value||Array.isArray(b.value)||typeof b.value!=='object')return fail('Invalid content');for(const [k,v] of Object.entries(b.value)){if(typeof v!=='string')return fail('Content must be text');if(['logo','hero','heroBackdrop','image','instagram','facebook','map'].includes(k)&&v&&!/^https:\/\//.test(v as string)&&!/^\/(?!\/)/.test(v as string))return fail('Use an HTTPS URL or uploaded image');}if(b.key==='branding'&&['registrationPrefix','registrationSuffix'].some(key=>b.value[key]!==undefined&&(b.value[key].length>20||/[\r\n]/.test(b.value[key]))))return fail('Registration prefix and suffix must be at most 20 characters');if(b.key==='branding'&&b.value.heroBackdropMode!==undefined&&!['photo','colour'].includes(b.value.heroBackdropMode))return fail('Choose a photo or solid banner colour');if(b.key==='branding'&&!/^#[a-fA-F0-9]{6}$/.test(b.value.accent||''))return fail('Use a valid hex brand colour')}else{if(!Array.isArray(b.value)||b.value.length>500)return fail('Invalid content list');const ids=new Set();for(const item of b.value){if(!item||typeof item!=='object'||typeof item.id!=='string'||!item.id||ids.has(item.id))return fail('Every record needs a unique ID');ids.add(item.id);if(b.key==='tournaments'){
+ if(p==='content'&&req.method==='PUT'){const b=await requestObject<ContentUpdate>(req);const contentValue=b.value;if(!contentKeys.includes(b.key))return fail('Unknown content section');if(JSON.stringify(contentValue).length>200000)return fail('Content too large');if(['branding','pages'].includes(b.key)){if(!contentValue||Array.isArray(contentValue)||typeof contentValue!=='object')return fail('Invalid content');for(const [k,v] of Object.entries(contentValue)){if(typeof v!=='string')return fail('Content must be text');if(['logo','hero','heroBackdrop','image','instagram','facebook','map'].includes(k)&&v&&!/^https:\/\//.test(v as string)&&!/^\/(?!\/)/.test(v as string))return fail('Use an HTTPS URL or uploaded image');}if(b.key==='branding'&&['registrationPrefix','registrationSuffix'].some(key=>contentValue[key]!==undefined&&(contentValue[key].length>20||/[\r\n]/.test(contentValue[key]))))return fail('Registration prefix and suffix must be at most 20 characters');if(b.key==='branding'&&contentValue.heroBackdropMode!==undefined&&!['photo','colour'].includes(contentValue.heroBackdropMode))return fail('Choose a photo or solid banner colour');if(b.key==='branding'&&!/^#[a-fA-F0-9]{6}$/.test(contentValue.accent||''))return fail('Use a valid hex brand colour')}else{if(!Array.isArray(contentValue)||contentValue.length>500)return fail('Invalid content list');const ids=new Set();for(const item of contentValue){if(!item||typeof item!=='object'||typeof item.id!=='string'||!item.id||ids.has(item.id))return fail('Every record needs a unique ID');ids.add(item.id);if(b.key==='tournaments'){
   for(const [key,limit] of [['registrationPrefix',20],['registrationSuffix',20],['receiptHeading',100],['confirmationHeading',100],['receiptNote',1000]] as const)
     if(item[key]!==undefined&&(typeof item[key]!=='string'||item[key].length>limit))return fail('Invalid '+key);
   if(item.manualPaymentEnabled!==undefined&&typeof item.manualPaymentEnabled!=='boolean')return fail('Invalid UPI QR setting');
   if(registrationChoices(item).includes('manual')){
     const match=typeof item.manualQrImage==='string'&&item.manualQrImage.match(/^\/api\/media\/public%2F([a-f0-9-]{36})$/i);
     const qr=match&&await fileStorage.head('public/'+match[1]);
-    if(!qr?.httpMetadata.contentType.startsWith('image/'))return fail('Upload a UPI QR image to enable manual payment.');
+    if(!qr||!qr.httpMetadata.contentType.startsWith('image/'))return fail('Upload a UPI QR image to enable manual payment.');
   }
   for(const key of ['manualPayee','manualUpiId','manualInstructions'])if(item[key]!==undefined&&(typeof item[key]!=='string'||item[key].length>1000))return fail('Invalid UPI payment details');
-  if(item.registrationMode!==undefined&&!registrationModes.includes(item.registrationMode))return fail('Choose a valid tournament registration mode');
-  if((['paid','both','manual'].includes(item.registrationMode)||item.manualPaymentEnabled===true)&&!(Math.round(Number(item.fee||0)*100)>0))return fail('Set a fee above zero to enable paid registration');
-}for(const k of ['fee','amount','capacity'])if(item[k]!==undefined&&(!Number.isFinite(Number(item[k]))||Number(item[k])<0))return fail('Fees and capacity must be non-negative numbers');for(const k of ['image','url','document'])if(item[k]&&!/^https:\/\//.test(item[k])&&!/^\/(?!\/)/.test(item[k]))return fail('Use HTTPS links or uploaded media');if(item.type==='video'&&item.url&&!/^https:\/\/(www\.)?(youtube\.com|youtu\.be|vimeo\.com)\//.test(item.url))return fail('Use a YouTube or Vimeo video link')}}await contentRecords(db).updateOne({_id:b.key},{$set:{value:b.value,updated:new Date().toISOString()}},{upsert:true});await log(session!.account.username,'Updated '+b.key);return json({saved:true})}
+  if(item.registrationMode!==undefined&&(typeof item.registrationMode!=='string'||!(registrationModes as readonly string[]).includes(item.registrationMode)))return fail('Choose a valid tournament registration mode');
+  if((['paid','both','manual'].includes(String(item.registrationMode))||item.manualPaymentEnabled===true)&&!(Math.round(Number(item.fee||0)*100)>0))return fail('Set a fee above zero to enable paid registration');
+}for(const k of ['fee','amount','capacity'])if(item[k]!==undefined&&(!Number.isFinite(Number(item[k]))||Number(item[k])<0))return fail('Fees and capacity must be non-negative numbers');for(const k of ['image','url','document'])if(item[k]&&!/^https:\/\//.test(String(item[k]))&&!/^\/(?!\/)/.test(String(item[k])))return fail('Use HTTPS links or uploaded media');if(item.type==='video'&&item.url&&!/^https:\/\/(www\.)?(youtube\.com|youtu\.be|vimeo\.com)\//.test(String(item.url)))return fail('Use a YouTube or Vimeo video link')}}await contentRecords(db).updateOne({_id:b.key},{$set:{value:contentValue,updated:new Date().toISOString()}},{upsert:true});await log(session!.account.username,'Updated '+b.key);return json({saved:true})}
  if(p==='requests'&&req.method==='GET'){const rows=await registrations(db).find({}).sort({created:-1}).limit(5000).toArray();return json(rows.map(visibleRegistration))}
  if(p==='requests'&&req.method==='PUT'){
   const b=await requestObject(req) as {id?:unknown;status?:unknown;notes?:unknown;participantRejectionReason?:unknown};

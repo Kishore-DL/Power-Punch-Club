@@ -9,11 +9,11 @@ import sharp from 'sharp';
 import jsQR from 'jsqr';
 import {localMockEnabled,mockTournamentId,mockQrText} from '../lib/local-mock-content.mjs';
 
-const env=parseEnv(await readFile(process.env.PPC_CONTENT_PREVIEW_ENV||'.env.content-preview','utf8'));assert.ok(localMockEnabled(env));assert.equal(env.BREVO_API_KEY,'');assert.equal(env.RAZORPAY_KEY_SECRET,'');
+const env=parseEnv(await readFile(process.env.PPC_CONTENT_PREVIEW_ENV||'.env.content-preview','utf8'));assert.ok(localMockEnabled(env)||(process.env.PPC_PRESENTATION_TEST==='true'&&/^mongodb:\/\/(127\.0\.0\.1|localhost):/.test(env.MONGODB_URI)&&env.MONGODB_DATABASE.startsWith('ppc_test_')));assert.equal(env.BREVO_API_KEY,'');assert.equal(env.RAZORPAY_KEY_SECRET,'');
 const origin=process.env.PPC_TEST_URL||'http://localhost:3020',client=new MongoClient(env.MONGODB_URI),db=client.db(env.MONGODB_DATABASE),browser=await chromium.launch({headless:true}),out='outputs/local-karate-flow';await mkdir(out,{recursive:true});
 const hash=b=>createHash('sha256').update(b).digest('hex');
 async function call(endpoint,body,cookie,method=body?'POST':'GET'){const r=await fetch(origin+'/api/'+endpoint,{method,headers:{...(body instanceof FormData?{}:{'Content-Type':'application/json'}),...(cookie?{Cookie:cookie}:{})},...(body!==undefined?{body:body instanceof FormData?body:JSON.stringify(body)}:{})});return {status:r.status,data:await r.json(),cookie:r.headers.getSetCookie().find(v=>v.includes('_session_v2='))?.split(';')[0]};}
-const content=(await call('content')).data,galleryBefore=JSON.stringify(content.gallery),formsBefore=JSON.stringify(content.forms),event=content.tournaments.find(e=>e.id===mockTournamentId),classes=content.training.filter(p=>p.localOnlyPreview);
+const content=(await call('content')).data,galleryBefore=JSON.stringify(content.gallery),formsBefore=JSON.stringify(content.forms),event=content.tournaments.find(e=>e.id===mockTournamentId),classes=content.training.filter(p=>p.localOnlyPreview||p.presentationOnly);
 assert.equal(classes.length,4);assert.equal(event.fee,500);assert.equal(event.registrationMode,'manual');assert.equal(event.previewEmailOptional,true);assert.equal((Date.parse(event.date)-Date.parse(event.setupDate))/86400000,45);assert.equal((Date.parse(event.date)-Date.parse(event.deadline))/86400000,7);
 const unwanted=/\b(?:demo|mock|sample|fictional|preview|illustrative|do not pay|test tournament|test class)\b/i;
 async function cleanText(locator){assert.doesNotMatch(await locator.innerText(),unwanted);}

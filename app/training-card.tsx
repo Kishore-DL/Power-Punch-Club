@@ -1,3 +1,4 @@
+import AssetImage from './asset-image';
 import ReadableCopy from './readable-copy';
 import { ArrowRight, ArrowUpRight, ChevronDown, Shield, Target, Zap } from 'lucide-react';
 import { useId, useState } from 'react';
@@ -34,7 +35,7 @@ export default function TrainingCard({ program, index, formatFee, onTrial }: Tra
   return (
     <article className="program" data-details-open={detailsOpen}>
       <div className={'program-art art-' + index}>
-        {program.image && <img className="program-photo" src={program.image} alt={program.title} loading="lazy" />}
+        {program.image && <AssetImage className="program-photo" src={program.image} alt={program.title} loading="lazy" />}
         <span className="art-number" aria-hidden="true">0{index + 1}</span>
         <Icon aria-hidden="true" />
         <span className="belt-line" aria-hidden="true" />

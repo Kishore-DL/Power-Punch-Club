@@ -1,5 +1,36 @@
 # Complete code release and separate content transfer
 
+## Current authorized publication (23 November 2026)
+
+This section supersedes the earlier dry-run/hold status below. The user subsequently explicitly authorized publication of the selected presentation content.
+
+- Full-project lint is now **0 errors and 0 warnings**. Project-owned explicit `any` contracts were replaced with content/API/registration types; navigation components are stable, effect-driven browser synchronization is asynchronous, password toggles retain uncontrolled values, and public images use Next image markup without changing their stored URLs. No blanket rule disabling or new ignores were added.
+- The existing configured `power_punch_club` destination received 8 gallery rows, 4 classes, 1 separate championship and its form (14 rows), plus 8 reviewed WebP public images and the unchanged non-payable PNG QR (9 files). No whole-database transfer occurred.
+- Public photo references now point to their deterministic `/api/media/public%2F...` file IDs, so stored content does not depend on a localhost URL or an untracked filesystem upload. The original eight public WebPs remain tracked in Git.
+- Existing genuine tournament `89e13617-2adb-4ebe-b9e4-9f4f8db630c3` was preserved. Branding was not written; saved hero `/power-punch-banner.webp` and position `50% 65%` were verified unchanged.
+- New presentation records carry explicit publication metadata. They may appear in production without enabling local mock mode. The championship cannot offer Razorpay/real online checkout; it uses the existing manual-proof/review flow and its non-payable QR. Verification, acknowledgement and receipt gating remain unchanged. No additional public demo/mock badge was introduced.
+- The new championship is selected for the existing homepage tournament card; the genuine event remains available in the tournament listing.
+- `scripts/publish-presentation-content.mjs` defaults to a precise dry run. Applying requires explicit source/target files and exact database confirmation. It validates image hashes and decodes the QR, creates a private ACL-restricted scoped content backup and rollback journal under ignored `.local-backups/published-content-*`, then atomically appends missing rows/files. Existing IDs and differing files are never overwritten. Concurrent content edits abort the transaction. The protected live-import journal was marked committed after post-import verification.
+- A subsequent read-only comparison confirmed all 14 records and 9 files identical, with no duplicate additions. The rollback journal retains only inserted IDs, fingerprints and public file hashes; do not restore whole arrays or remove pre-existing records. Stop rollback if imported records were edited or an event now has registrations.
+
+Validation: production build and TypeScript passed. Full regression groups passed across the initial run and sequential continuation; an initial password-toggle value failure was fixed in the component, and a Chromium target crash during overlapping browser suites passed on the sequential proof rerun. The disposable content/publication suite passed dry-run/apply/repeat, scoped backup/journal creation, existing event/hero preservation, production-mode image URLs and full manual registration/review/tracking/receipt flow. Tests include 360/390/768/desktop viewports across the browser suites. No real email or payment requests were made by tests.
+
+Read-only verification against the actual imported database through `http://localhost:3030` passed homepage/gallery/training/tournament pages and the registration QR at 360/390/768/1440px. Nine selected image URLs returned image MIME types and decoded dimensions; the QR download decoded to the original non-payable payload. Browser errors: zero. Mutation requests: zero. Screenshots are ignored under `outputs/published-content-readonly/`. This temporary local URL is not the Render website.
+
+Render is not connected in this session, the repository has no Render API configuration/deployment metadata, and the public service URL has not been supplied. The final report identifies the pushed commit to select. No Render setting was changed and no manual Render deployment was triggered. Read-only rendering of the real imported database is checked through a temporary localhost renderer with all live providers blanked; it must not be reported as verification of the actual Render deployment.
+
+Reproducible checks:
+
+```powershell
+npm run lint
+npx tsc --noEmit
+npm run test:registration -- .local-backups/registration-native.env
+node scripts/run-content-regression.mjs .local-backups/registration-native.env
+```
+
+The local test environment and MongoDB executable/data remain ignored and are not part of the release. The production import was separately authorized; do not add it to startup or Render build commands.
+
+
 ## What belongs to this code update
 
 The pending working tree was reviewed across application code, styles, server helpers, tools, tests, documentation, package changes and public assets. The release contains the completed work below; earlier reports document individual tasks and their historical test results.

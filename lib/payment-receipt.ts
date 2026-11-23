@@ -1,15 +1,17 @@
+import type {Registration} from './mongodb';
+import type {ClubContent,RegistrationData} from './club-types';
 import { registrationSerial } from './tournament-registration';
 
 export function receiptNumber(paymentId: string) {
   return 'PPC-' + paymentId.replace(/^pay_/, '');
 }
 
-export function receiptDetails(row: any, content: any) {
-  const data = typeof row.data==='string'?JSON.parse(row.data):row.data||{};
-  const event = content.tournaments.find((item: any) => item.id === row.target);
-  const form = content.forms.find((item: any) => item.id === event?.formId);
+export function receiptDetails(row: Omit<Registration,'data'>&{data:RegistrationData|string}, content: Pick<ClubContent,'branding'|'tournaments'|'forms'|'training'>&{fees?:{id:string;title:string}[]}) {
+  const data:RegistrationData = typeof row.data==='string'?JSON.parse(row.data):row.data||{};
+  const event = content.tournaments.find((item) => item.id === row.target);
+  const form = content.forms.find((item) => item.id === event?.formId);
   const labels = data.receiptFields || Object.fromEntries(
-    (form?.fields || []).map((field: any) => [field.id, { label: field.label, type: field.type, showOnReceipt: field.showOnReceipt }]),
+    (form?.fields || []).map((field) => [field.id, { label: field.label, type: field.type, showOnReceipt: field.showOnReceipt }]),
   );
   const definitionKeys=Object.keys(labels);
   const storedOrder: string[]=Array.isArray(data.receiptFieldOrder)?data.receiptFieldOrder.filter((key:unknown):key is string=>typeof key==='string'&&Object.hasOwn(labels,key)):[];
@@ -36,14 +38,14 @@ export function receiptDetails(row: any, content: any) {
     reference: row.id,
     club: data.receiptClub || content.branding.name,
     title: data.receiptTitle || event?.title ||
-      content.training.find((item: any) => item.id === row.target)?.title ||
-      content.fees?.find((item: any) => item.id === row.target)?.title || 'Club payment',
+      content.training.find((item) => item.id === row.target)?.title ||
+      content.fees?.find(item=>item.id===row.target)?.title || 'Club payment',
     name: row.name,
     amount: row.amount,
     confirmedAt: data.paymentConfirmedAt || null,
     fields,
     team: Array.isArray(data.team) && row.kind === 'team'
-      ? data.team.map(({ name, age, belt }: any) => ({ name, age, belt }))
+      ? data.team.map(({ name, age, belt }) => ({ name, age, belt }))
       : [],
   };
 }

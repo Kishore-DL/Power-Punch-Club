@@ -6,10 +6,7 @@ import { renderRegistrationPdf, type DocumentRow, type RegistrationPdfModel } fr
 import { fileStorage } from './file-storage';
 import type { Registration } from './mongodb';
 
-type DocumentContent = {
-  branding:{name:string;logo:string;email?:string;phone?:string;address?:string;whatsapp?:string};
-  tournaments:Record<string,unknown>[];forms:Record<string,unknown>[];training:Record<string,unknown>[];
-};
+type DocumentContent=Pick<import('./club-types').ClubContent,'branding'|'tournaments'|'forms'|'training'>;
 
 // Read current uploaded/local branding without fetching participant-controlled URLs.
 async function logoBytes(url:string) {
@@ -47,7 +44,7 @@ export async function registrationDocument(row:Registration,content:DocumentCont
   add(payment,'Payment status',paymentStatus,true);
   if(verified)add(payment,'Payment receipt number',details.number);
   add(payment,'Transaction reference',row.data.paymentMethod==='manual'?row.data.manualProof?.transactionId:row.payment_id);
-  if(verified)add(payment,'Confirmed at',ist(details.confirmedAt));
+  if(verified)add(payment,'Confirmed at',ist(details.confirmedAt||undefined));
   if(row.payment_status==='manual_rejected')add(payment,'Correction reason',row.data.manualReviewNote||'Please contact the club.');
   const brand=content.branding,contacts:string[]=[],footer:string[]=[];
   if(brand.phone){contacts.push('Phone: '+brand.phone);footer.push(brand.phone);}

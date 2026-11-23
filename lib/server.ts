@@ -1,3 +1,4 @@
+import type {ClubContent} from './club-types';
 import {scopeLocalMockContent} from './local-mock-content.mjs';
 import { after } from 'next/server';
 import { queueAdminNotification, registrationNotification, deliverAdminNotification } from './admin-notifications.mjs';
@@ -11,13 +12,13 @@ export { database } from './mongodb';
 export const runtime=()=>process.env;
 export const clientPreview=()=>runtime().PPC_CLIENT_PREVIEW!=='false';
 
-export async function getContent() {
+export async function getContent():Promise<ClubContent> {
   const content=structuredClone(defaults);
   const preview=clientPreview();
   if(preview){
     for(const [key,value] of Object.entries(structuredClone(demoContent))){
       if(key==='branding')Object.assign(content.branding,value);
-      else content[key]=value;
+      else Object.assign(content,{[key]:value});
     }
   }
   const rows=preview&&!runtime().MONGODB_URI
@@ -29,8 +30,8 @@ export async function getContent() {
       const live=value.filter(item=>item&&item.demo!==true&&
         !String(item.id).startsWith('demo-')&&
         ![item.image,item.url].some(asset=>typeof asset==='string'&&asset.startsWith('/demo/')));
-      if(preview){if(value.length)content[key]=value;}
-      else content[key]=live;
+      if(preview){if(value.length)Object.assign(content,{[key]:value});}
+      else Object.assign(content,{[key]:live});
     }
   }
   if(preview)content.branding.previewOnly='true';

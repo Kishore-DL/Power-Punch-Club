@@ -9,7 +9,7 @@ const withCookies=(body:unknown,status:number,cookies:string[])=>{const response
 const fail=(error:string,status=400)=>json({error},status);
 const isRole=(v:unknown):v is Role=>v==='admin'||v==='staff';
 
-export async function passwordEndpoint(path:string,req:Request,db:Db,env:any,session:Awaited<ReturnType<typeof currentAccount>>) {
+export async function passwordEndpoint(path:string,req:Request,db:Db,env:NodeJS.ProcessEnv,session:Awaited<ReturnType<typeof currentAccount>>) {
   const secret=env.PPC_SESSION_SECRET;
   if(typeof secret!=='string'||secret.length<32)return fail('Password sign-in is not configured',503);
   if((path==='auth/logout'||path==='auth/staff-entry')&&req.method==='POST'){

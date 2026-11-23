@@ -1,4 +1,5 @@
 'use client';
+import NextLink from 'next/link';
 
 import { useEffect, useState, type FormEvent } from 'react';
 
@@ -56,6 +57,6 @@ export default function StaffAccessPanel() {
       <button type="button" className="btn pale" disabled={busy}
         aria-label={'Remove staff access for ' + address} onClick={()=>void change('DELETE',address)}>Remove access</button>
     </li>)}</ul>
-    <a href="/staff" className="text-link">Open Staff Portal</a>
+    <NextLink href="/staff" className="text-link">Open Staff Portal</NextLink>
   </section>;
 }

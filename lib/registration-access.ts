@@ -9,16 +9,16 @@ export async function portalRegistrations(db: Db) {
     const details = data;
     const uploads = Object.entries(details.answers || {}).flatMap(([field, value]) => {
       const definition = details.receiptFields?.[field];
-      return staffUploadKey(value, definition?.type, definition?.staffDownload) ? [{ field, label: definition.label }] : [];
+      return staffUploadKey(value, definition?.type, definition?.staffDownload) ? [{ field, label: definition?.label||field }] : [];
     });
     const answers = Object.entries(details.answers || {}).flatMap(([field, value]) => {
       const definition = details.receiptFields?.[field];
-      if (!definition || ['file','photo','masked_aadhaar'].includes(definition.type) ||
+      if (!definition || ['file','photo','masked_aadhaar'].includes(definition?.type) ||
           !['string','number','boolean'].includes(typeof value) || (typeof value === 'string' && value.startsWith('/api/'))) return [];
-      return [{ label: definition.label, value: String(value) }];
+      return [{ label: definition?.label||field, value: String(value) }];
     });
     return { ...row, email, phone, registrationNumber: details.registrationNumber || row.id,
-      tournament: details.receiptTitle || row.target, uploads, answers, team: Array.isArray(details.team) ? details.team.map(({name,age,belt}: {name:string;age:number;belt:string})=>({name,age,belt})) : [] };
+      tournament: details.receiptTitle || row.target, uploads, answers, team: Array.isArray(details.team) ? details.team.map(({name,age,belt}: {name:string;age:number|string;belt:string})=>({name,age,belt})) : [] };
   });
 }
 

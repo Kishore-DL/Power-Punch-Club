@@ -1,3 +1,4 @@
+import type {RegistrationData} from './club-types';
 import { configureMongoDns } from './mongodb-dns.mjs';
 import { MongoClient, MongoServerError, type Db } from 'mongodb';
 
@@ -21,14 +22,14 @@ export function duplicateKey(error:unknown) {
 
 export type Registration = {
   _id:string; id:string; token:string; kind:string; target:string; name:string; email:string; phone:string;
-  data:Record<string,any>; status:string; notes:string; amount:number; payment_status:string;
+  data:RegistrationData; status:string; notes:string; amount:number; payment_status:string;
   created:string; order_id?:string|null; payment_id?:string;
   tracking?: {digest:string;keyId:string;iv:string;ciphertext:string;tag:string};
 };
 export const participantFilter={kind:{$in:['tournament','team']}};
 export const registrations=(db:Db)=>db.collection<Registration>('requests');
 export const visibleRegistration=(row:Registration)=>({...row,_id:undefined,token:undefined,tracking:undefined,data:JSON.stringify(row.data)});
-export const contentRecords=(db:Db)=>db.collection<{_id:string;value:any;updated:string}>('content');
+export const contentRecords=(db:Db)=>db.collection<{_id:string;value:unknown;updated:string}>('content');
 
 export async function reserveRegistration(db:Db,row:Registration,seats:number,capacity:number) {
   if(!seats){

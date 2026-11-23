@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import {publicAssetKey,publicationRecords,publicationChanges} from '../lib/presentation-content.mjs';
+import {mockTournamentId,mockFormId,publishedPresentation,scopeLocalMockContent} from '../lib/local-mock-content.mjs';
+import {registrationChoices} from '../lib/tournament-registration.ts';
+const gallery=Array.from({length:8},(_,i)=>({id:'karate-worldwide-0'+(i+1),url:'/image'+i,title:'Photo '+i})),training=['kids','junior','advanced','weekend'].map(id=>({id:'local-karate-'+id+'-v1',title:id,image:'/image0',localOnlyPreview:true}));
+const selected=publicationRecords({gallery,training,tournaments:[{id:mockTournamentId,title:'Championship',image:'/image0',manualUpiId:'',manualPayee:'',localOnlyPreview:true}],forms:[{id:mockFormId,fields:[]}]},new Map([['/image0','/api/media/public%2Fasset']]));
+assert.equal(selected.gallery.length,8);assert.equal(selected.training.length,4);assert.equal(selected.tournaments[0].manualUpiId,'');assert.equal(selected.tournaments[0].image,'/api/media/public%2Fasset');assert.ok(publishedPresentation(selected.tournaments[0]));
+const live=scopeLocalMockContent(structuredClone(selected),{});assert.equal(live.tournaments.length,1);assert.equal(live.training.length,4);assert.equal(live.forms.length,1);assert.equal(live.tournaments[0].previewQrNonPayable,true);
+assert.deepEqual(registrationChoices({...selected.tournaments[0],registrationMode:'paid'}),['manual']);assert.deepEqual(registrationChoices({...selected.tournaments[0],registrationMode:'disabled'}),[]);
+assert.match(publicAssetKey('a'.repeat(64)),/^public\/[a-f0-9-]{36}$/);assert.equal(publicAssetKey('a'.repeat(64)),publicAssetKey('a'.repeat(64)));assert.notEqual(publicAssetKey('a'.repeat(64)),publicAssetKey('b'.repeat(64)));
+const changes=publicationChanges(selected,{gallery:[selected.gallery[0]],tournaments:[{id:mockTournamentId,title:'Keep existing'}]});assert.equal(changes.find(row=>row.id===gallery[0].id).action,'skip-identical');assert.equal(changes.find(row=>row.id===mockTournamentId).action,'conflict-preserve-existing');
+console.log('Authorized presentation tests passed: exact selection, public file rewriting, production visibility, no Razorpay choice, non-payable QR marker, stable file IDs and conflict preservation.');

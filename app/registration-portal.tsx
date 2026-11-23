@@ -1,4 +1,5 @@
 'use client';
+import NextLink from 'next/link';
 
 import { PortalLogin, PasswordSignOut, authRequest } from './portal-login';
 import { useEffect, useState, useRef } from 'react';
@@ -26,19 +27,18 @@ export default function RegistrationPortal({ logo }: { logo?: string }) {
   useEffect(() => {
     let active=true;
     const enter=()=>{
-      setSession(undefined);setRows([]);setError('');
       return authRequest('staff-entry','POST',{}).then(()=>{if(active)setSession({admin:false,staff:false,passwordMode:true})}).catch(()=>{if(active)setError('Unable to start Staff sign-in. Please refresh.');});
     };
     if(!entry.current)entry.current=enter();
     else entry.current.then(()=>{if(active)setSession({admin:false,staff:false,passwordMode:true})});
-    const show=(event:PageTransitionEvent)=>{if(event.persisted)entry.current=enter();};
+    const show=(event:PageTransitionEvent)=>{if(event.persisted){setSession(undefined);setRows([]);setError('');entry.current=enter();}};
     window.addEventListener('pageshow',show);
     return ()=>{active=false;window.removeEventListener('pageshow',show)};
   }, []);
   useEffect(() => {
     if (!allowed) return;
     let active=true;
-    setLoading(true);
+
     const check=async()=>{
       try{
         const response=await fetch('/api/staff/registrations',{cache:'no-store'});
@@ -59,7 +59,7 @@ export default function RegistrationPortal({ logo }: { logo?: string }) {
   if(session&&!allowed)return <PortalLogin role="staff" passwordMode={Boolean(session.passwordMode)} logo={logo} onSignedIn={()=>{setError('');setSession({admin:false,staff:true,passwordMode:true})}}/>;
 
   return <main className="portal-page">
-    <nav aria-label="Portal navigation"><a href="/">Back to website</a></nav>
+    <nav aria-label="Portal navigation"><NextLink href="/">Back to website</NextLink></nav>
     <h1>{allowed ? 'Tournament registrations' : title}</h1>
     {error && <p role="alert">{error}</p>}
     {!session && !error && <p role="status">Checking sign-in…</p>}

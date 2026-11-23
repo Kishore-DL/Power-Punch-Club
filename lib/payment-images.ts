@@ -1,4 +1,4 @@
-import {localMockTarget,mockTournamentId} from './local-mock-content.mjs';
+import {localMockTarget,mockTournamentId,publishedPresentation} from './local-mock-content.mjs';
 import type {Db} from 'mongodb';
 import {contentRecords,registrations} from './mongodb';
 import {fileStorage} from './file-storage';
@@ -15,9 +15,9 @@ function imageResponse(body:Uint8Array,type:string,name:string,inline:boolean){
   return new Response(Buffer.from(body),{headers:{'Content-Type':type,'Content-Disposition':`${inline?'inline':'attachment'}; filename="${name}.${extension}"`,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
 }
 export async function upiQrDownload(db:Db,eventId:string,inline=false){
-  if(eventId===mockTournamentId&&!localMockTarget(eventId))return missing();
   const events=(await contentRecords(db).findOne({_id:'tournaments'}))?.value;
   const event=Array.isArray(events)?events.find(item=>item.id===eventId):undefined;
+  if(eventId===mockTournamentId&&!localMockTarget(eventId)&&!publishedPresentation(event))return missing();
   const match=typeof event?.manualQrImage==='string'&&/^\/api\/media\/public%2F([a-f0-9-]{36})$/i.exec(event.manualQrImage);
   if(!match)return missing();
   const file=await fileStorage.get('public/'+match[1]);

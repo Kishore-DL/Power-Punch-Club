@@ -1,7 +1,8 @@
+import type {ClubContent} from './club-types';
 import { themeDefaults } from './theme';
 export const defaultClubLogo = '/power-punch-logo.webp';
 
-export const defaults:any = {
+export const defaults:ClubContent = {
  branding:{...themeDefaults,name:'Power Punch Club',tagline:'Karate Training',email:'',phone:'',whatsapp:'',address:'',instagram:'',facebook:'',map:'',logo:defaultClubLogo,hero:'/power-punch-banner.webp',heroPosition:'50% 65%',heroBackdropMode:'photo',heroBackdrop:'/hero-purple-background.webp',useHeroPattern:'true',trialFormId:'',enquiryFormId:'',accent:'#e63232',announcement:'For class timings and admission details, contact the club.',heroTitle:'Karate Training',heroText:'Power Punch Club · Vellore',about:'Power Punch Club provides karate training. Use this website to find class details, register for tournaments and view results.',seoTitle:'Power Punch Club | Karate & Martial Arts',seoDescription:'Find karate classes, tournament registration, results and contact details for Power Punch Club.'},
  training:[],
  masters:[], tournaments:[], achievements:[], gallery:[], announcements:[],

@@ -1,4 +1,6 @@
 'use client';
+import AssetImage from './asset-image';
+import NextLink from 'next/link';
 import PasswordInput from './password-input';
 
 import { useState, type ReactNode } from 'react';
@@ -9,7 +11,7 @@ export async function authRequest(path:string,method='GET',body?:unknown) {
   const response=await fetch('/api/auth/'+path,{method,...(body!==undefined?{
     headers:{'Content-Type':'application/json'},body:JSON.stringify(body),
   }:{})});
-  const data=await response.json() as any;
+  const data=await response.json() as {error?:string;admin?:boolean;staff?:boolean;owner?:boolean;passwordMode?:boolean;username:string;accounts:{role:'admin'|'staff';username:string;owner?:boolean}[]};
   if(!response.ok)throw new Error(data.error||'Unable to complete sign-in');
   return data;
 }
@@ -22,8 +24,8 @@ export function PortalLogin({role,passwordMode,logo,children,onSignedIn}:{
   const title={staff:'Staff Login',admin:'Admin Login'}[role];
   return <main className={'portal-login portal-login-'+role}>
     <section className="portal-login-card" aria-labelledby="portal-login-title">
-      <a className="portal-back" href="/"><ArrowLeft size={18}/> Back to website</a>
-      <div className="portal-identity"><img src={logo||defaultClubLogo} alt="" width={58} height={58}/><strong>Power Punch Club</strong></div>
+      <NextLink className="portal-back" href="/"><ArrowLeft size={18}/> Back to website</NextLink>
+      <div className="portal-identity"><AssetImage src={logo||defaultClubLogo} alt="" width={58} height={58}/><strong>Power Punch Club</strong></div>
       <div className="portal-login-icon"><ShieldCheck size={22} aria-hidden="true"/></div>
       <h1 id="portal-login-title">{title}</h1>
       <p>{role==='staff'?'View tournament registrations and approved documents.':'Manage your club website and registrations.'}</p>
@@ -31,7 +33,7 @@ export function PortalLogin({role,passwordMode,logo,children,onSignedIn}:{
         e.preventDefault();
         const data=new FormData(e.currentTarget);
         setError('');setBusy(true);
-        try{await authRequest('login','POST',{role,username:data.get('username'),password:data.get('password')});onSignedIn?onSignedIn():location.reload()}
+        try{await authRequest('login','POST',{role,username:data.get('username'),password:data.get('password')});if(onSignedIn)onSignedIn();else location.reload()}
         catch(e){setError(e instanceof Error?e.message:'Unable to sign in');setBusy(false)}
       }}>
         <label>Login ID<input name="username" required maxLength={125} autoComplete="username"/></label>

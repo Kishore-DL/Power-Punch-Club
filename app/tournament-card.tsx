@@ -1,3 +1,5 @@
+import AssetImage from './asset-image';
+import {useState} from 'react';
 import { registrationChoices } from '../lib/tournament-registration';
 import { ArrowUpRight, CalendarDays, Clock, MapPin, Ticket } from 'lucide-react';
 import type { ComponentType, ReactNode } from 'react';
@@ -12,7 +14,7 @@ type TournamentSummary = {
   image?: string;
   fee?: number;
   registrationMode?: string;
-  status: string;
+  status?: string;
 };
 
 type TournamentCardProps = {
@@ -24,14 +26,15 @@ type TournamentCardProps = {
 };
 
 export default function TournamentCard({ tournament, Link, formatDate, formatFee, featured = false }: TournamentCardProps) {
+  const [now]=useState(()=>Date.now());
   const choices = registrationChoices(tournament);
-  const isOpen = tournament.status === 'open' && choices.length > 0 && (!tournament.deadline || Date.now() <= Date.parse(tournament.deadline+'T23:59:59+05:30'));
+  const isOpen = tournament.status === 'open' && choices.length > 0 && (!tournament.deadline || now <= Date.parse(tournament.deadline+'T23:59:59+05:30'));
   const status = isOpen ? 'Registration open' : (tournament.status === 'closed'||!choices.length) ? 'Registration closed' : 'Registration not open';
 
   return (
     <article className="tournament-card">
       {tournament.image && (
-        <img className="tournament-card-photo" src={tournament.image} alt={tournament.title} loading="lazy" />
+        <AssetImage className="tournament-card-photo" src={tournament.image} alt={tournament.title} loading="lazy" />
       )}
       <div className="tournament-card-body">
         <span className="tournament-status">{status}</span>

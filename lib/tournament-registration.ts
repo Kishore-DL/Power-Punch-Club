@@ -2,7 +2,10 @@ export type RegistrationChoice = 'paid' | 'free' | 'manual';
 
 export const registrationModes = ['auto', 'paid', 'free', 'both', 'manual', 'disabled'] as const;
 
-export function registrationChoices(event: { registrationMode?: string; fee?: number; manualPaymentEnabled?: boolean }): RegistrationChoice[] {
+export function registrationChoices(event: { registrationMode?: string; fee?: number; manualPaymentEnabled?: boolean; presentationOnly?:boolean }): RegistrationChoice[] {
+  // Authorized presentation content may use the existing manual-proof workflow,
+  // but must never open a real online checkout, even when live keys are present.
+  if(event.presentationOnly)return event.registrationMode==='disabled'||!event.manualPaymentEnabled?[]:['manual'];
   let choices: RegistrationChoice[];
   switch (event.registrationMode) {
     case 'paid': choices = ['paid']; break;

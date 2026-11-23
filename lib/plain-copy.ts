@@ -19,4 +19,9 @@ const replacements:Record<string,string>={
   "Club dojo": "Club training centre",
   "Explore karate training, meet our masters, and discover tournaments at Power Punch Club.": "Find karate classes, tournament registration, results and contact details for Power Punch Club."
 };
-export function plainStarterCopy(value:any):any{if(typeof value==='string')return replacements[value]??value;if(Array.isArray(value))return value.map(plainStarterCopy);if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([k,v])=>[k,plainStarterCopy(v)]));return value}
+export function plainStarterCopy<T>(value:T):T {
+  if(typeof value==='string')return (replacements[value]??value) as T;
+  if(Array.isArray(value))return value.map(item=>plainStarterCopy(item)) as T;
+  if(value&&typeof value==='object')return Object.fromEntries(Object.entries(value).map(([key,item])=>[key,plainStarterCopy(item)])) as T;
+  return value;
+}

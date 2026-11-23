@@ -34,7 +34,7 @@ export async function newAccount(role:Role,username:string,password:string,previ
 }
 export async function getAccount(db:Db,key:string):Promise<Account|null> {
   const row=await contentRecords(db).findOne({_id:key});
-  return row?.value||null;
+  return (row?.value as Account|undefined)||null;
 }
 export async function addAccount(db:Db,key:string,account:Account) {
   try{await contentRecords(db).insertOne({_id:key,value:account,updated:new Date().toISOString()});return true}

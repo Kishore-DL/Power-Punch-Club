@@ -1,4 +1,5 @@
-export const demoContent:any = {
+import type {ClubContent} from './club-types';
+export const demoContent:Partial<ClubContent> = {
   "branding": {
     "announcement": "**Demo tournament**\n- **Event date:** 20 December 2026\n- **Register by:** 15 December",
     "email": "hello@powerpunch.example",

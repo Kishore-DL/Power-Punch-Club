@@ -1,3 +1,5 @@
+import AssetImage from './asset-image';
+import {useState} from 'react';
 import { registrationChoices, type RegistrationChoice } from '../lib/tournament-registration';
 import ReadableCopy from './readable-copy';
 import { ArrowLeft, CalendarDays, Clock, Download, Expand, MapPin, Users, X } from 'lucide-react';
@@ -13,7 +15,7 @@ type Tournament = {
   image?: string;
   fee?: number;
   registrationMode?: string;
-  status: string;
+  status?: string;
   categories?: string;
   eligibility?: string;
   rules?: string;
@@ -30,8 +32,9 @@ type TournamentDetailProps = {
 
 export default function TournamentDetail({ tournament, Link, formatDate, formatFee, onRegister }: TournamentDetailProps) {
   const photoDialog = useRef<HTMLDialogElement>(null);
+  const [now]=useState(()=>Date.now());
   const choices = registrationChoices(tournament);
-  const isOpen = tournament.status === 'open' && choices.length > 0 && (!tournament.deadline || Date.now() <= Date.parse(tournament.deadline+'T23:59:59+05:30'));
+  const isOpen = tournament.status === 'open' && choices.length > 0 && (!tournament.deadline || now <= Date.parse(tournament.deadline+'T23:59:59+05:30'));
   const sections = [
     ['Categories', tournament.categories],
     ['Eligibility', tournament.eligibility],
@@ -57,7 +60,7 @@ export default function TournamentDetail({ tournament, Link, formatDate, formatF
         <div className="tournament-overview">
           {tournament.image && (
             <figure className="tournament-media">
-              <img className="tournament-detail-photo" src={tournament.image} alt={tournament.title} fetchPriority="high" />
+              <AssetImage className="tournament-detail-photo" src={tournament.image} alt={tournament.title} fetchPriority="high" />
               <button type="button" className="tournament-photo-open" aria-haspopup="dialog"
                 onClick={() => photoDialog.current?.showModal()}>
                 <Expand size={14} aria-hidden="true" /> Full photo
@@ -127,7 +130,7 @@ export default function TournamentDetail({ tournament, Link, formatDate, formatF
           <button type="button" aria-label="Close image" onClick={() => photoDialog.current?.close()}>
             <X aria-hidden="true" />
           </button>
-          <img src={tournament.image} alt={tournament.title} loading="lazy" />
+          <AssetImage src={tournament.image} alt={tournament.title} loading="lazy" />
         </dialog>
       )}
     </>
