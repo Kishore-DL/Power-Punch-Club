@@ -23,9 +23,9 @@ try{
   const entry=notification('initial');await queueAdminNotification(db,entry,options);
   assert.equal(calls.length,1);assert.equal(calls[0].url,'https://api.brevo.com/v3/smtp/email');assert.equal(calls[0].request.method,'POST');assert.equal(calls[0].request.headers['api-key'],env.BREVO_API_KEY);
   assert.deepEqual(calls[0].payload.sender,{email:env.EMAIL_FROM_ADDRESS,name:env.EMAIL_FROM_NAME});assert.deepEqual(calls[0].payload.to,[{email:env.ADMIN_NOTIFICATION_EMAIL}]);
-  assert.equal(calls[0].payload.cc,undefined);assert.equal(calls[0].payload.bcc,undefined);assert.equal(calls[0].payload.replyTo,undefined);assert.equal(calls[0].payload.textContent,entry.body);assert.match(calls[0].payload.headers.idempotencyKey,/^[a-f0-9-]{36}$/);
+  assert.equal(calls[0].payload.cc,undefined);assert.equal(calls[0].payload.bcc,undefined);assert.equal(calls[0].payload.replyTo,undefined);assert.equal(calls[0].payload.textContent,entry.body);assert.equal(calls[0].payload.htmlContent,entry.html);assert.match(entry.html,/<table/);assert.match(calls[0].payload.headers.idempotencyKey,/^[a-f0-9-]{36}$/);
   let stored=await queue.findOne({registrationId:fixture.id});assert.equal(stored.status,'accepted');assert.equal(stored.providerMessageId,'<mock-message@brevo.invalid>');assert.equal(stored.deliveryStatus,'not_confirmed');assert.equal(stored.deliveredAt,undefined);
-  for(const value of ['PPC-000123',fixture.name,'Test tournament','INR 750.00','Awaiting payment verification'])assert.ok(stored.body.includes(value));
+  for(const value of ['PPC-000123',fixture.name,'Test tournament','INR 750.00','Awaiting Admin Verification'])assert.ok(stored.body.includes(value));
   assert.ok(!stored.body.includes('NEVER-IN-NOTIFICATION'));
   await Promise.all(Array.from({length:10},()=>queueAdminNotification(db,entry,options)));assert.equal(calls.length,1,'Same event is not sent twice');
   const concurrent=await pending('concurrent');const before=calls.length;await Promise.all(Array.from({length:12},()=>deliverAdminNotification(db,concurrent,options)));assert.equal(calls.length,before+1,'MongoDB lease prevents concurrent sending');
@@ -66,6 +66,18 @@ try{
   const duplicate=await pending('duplicate-key');await deliverAdminNotification(db,duplicate,{...options,fetch:async()=>Response.json({code:'duplicate_parameter',message:'idempotency key already processed'},{status:400})});stored=await queue.findOne({id:duplicate});assert.equal(stored.retryBlocked,true);assert.equal(stored.status,'pending');assert.equal(stored.providerMessageId,undefined);
   const noId=await pending('no-message-id');await deliverAdminNotification(db,noId,{...options,fetch:async()=>Response.json({},{status:201})});assert.equal((await queue.findOne({id:noId})).deliveryUncertain,true);
   const changed=await pending('changed-recipient');const changedBefore=calls.length;await deliverAdminNotification(db,changed,{...options,env:{...env,ADMIN_NOTIFICATION_EMAIL:'new-admin@example.invalid'}});assert.equal((await queue.findOne({id:changed})).status,'skipped');assert.equal(calls.length,changedBefore);
-  const history=await adminOutboxHistory(db,env);assert.ok(history.every(row=>row.recipient===undefined&&row.body===undefined));assert.ok(!JSON.stringify(history).includes(env.ADMIN_NOTIFICATION_EMAIL));assert.ok(!JSON.stringify(history).includes(env.BREVO_API_KEY));
+  const history=await adminOutboxHistory(db,env);assert.ok(history.every(row=>row.recipient===undefined&&row.body===undefined&&row.html===undefined));assert.ok(!JSON.stringify(history).includes(env.ADMIN_NOTIFICATION_EMAIL));assert.ok(!JSON.stringify(history).includes(env.BREVO_API_KEY));
+  await queue.updateMany({status:'pending'},{$set:{retryBlocked:true}});
+  const beforeBlocked=calls.length;
+  for(const event of ['manual-proof-rejected','registration-updated','enquiry-created','trial-created']){
+    const blocked=await queueAdminNotification(db,{...registrationNotification(event,fixture),eventKey:'blocked:'+event},options);
+    assert.equal(blocked.status,'skipped');assert.ok((await queue.findOne({id:blocked.id})).skipReason);
+  }
+  const manualVerified={...fixture,payment_status:'paid',payment_id:'manual_fixture'};
+  assert.equal((await queueAdminNotification(db,registrationNotification('payment-confirmed',manualVerified),options)).status,'skipped');
+  assert.equal(calls.length,beforeBlocked);
+  const changedEvent=await pending('policy-changed');await queue.updateOne({id:changedEvent},{$set:{event:'registration-updated'}});
+  assert.equal((await deliverAdminNotification(db,changedEvent,options)).status,'skipped');
+  await retryAdminNotifications(db,options);assert.equal(calls.length,beforeBlocked);
   console.log('Mocked Brevo tests passed: payload/auth, Admin-only target, secret redaction, legacy skipping/history, pending config, concurrency/event dedupe, provider IDs vs delivery, 401/sender/quota/429/503/timeouts, backoff, idempotency and expired-ambiguity review. No real email sent.');
 }finally{await client.close();}

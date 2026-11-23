@@ -1,0 +1,9 @@
+import assert from 'node:assert/strict';
+import {reviewData,reviewTournament,reviewAnswerRows,reviewValue,reviewLabel,paymentStatusLabels,isReviewAttachment} from '../lib/admin-review.mjs';
+const content={branding:{},tournaments:[{id:'internal-target-uuid',title:'Actual tournament name',formId:'form'}],forms:[{id:'form',fields:[{id:'age',label:'Current age label'},{id:'note',label:'Current note'}]}]};
+const record={kind:'team',target:'internal-target-uuid'},data={receiptTitle:'Original tournament name',receiptFieldOrder:['note','age','consent'],receiptFields:{note:{label:'Submitted message'},age:{label:'Age at submission'},consent:{label:'Consent'}},answers:{age:0,note:'line one\nline two',consent:false,legacy:'Legacy answer'}};
+assert.equal(reviewTournament(record,data,content),'Original tournament name');assert.equal(reviewTournament(record,{},content),'Actual tournament name');assert.equal(reviewTournament({...record,target:'missing'}, {},content),'Tournament details unavailable');
+const rows=reviewAnswerRows(record,data,content);assert.deepEqual(rows.map(row=>row.id),['note','age','consent','legacy']);assert.equal(rows[1].label,'Age at submission');assert.equal(rows[1].value,0);assert.equal(rows[2].value,false);assert.equal(rows[0].value,'line one\nline two');
+assert.equal(reviewValue(false),'No');assert.equal(reviewValue(0),'0');assert.equal(reviewValue(''),'Not provided');assert.equal(reviewLabel(paymentStatusLabels,'manual_pending'),'Awaiting payment verification');
+assert.equal(isReviewAttachment('/api/media/private%2F00000000-0000-0000-0000-000000000000'),true);assert.equal(isReviewAttachment('javascript:alert(1)'),false);assert.deepEqual(reviewData('not JSON'),{});
+console.log('Admin review presentation tests passed: readable statuses/tournament names, snapshot labels/order, all submitted answers, zero/false/multiline values and safe attachment links.');

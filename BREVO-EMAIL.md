@@ -21,7 +21,9 @@ Brevo's [transactional email endpoint](https://developers.brevo.com/reference/se
 
 ## Notification events
 
-The administrator receives new registration/team requests, enquiries, trial requests, initial and resubmitted manual UPI proofs, payment verification/capture confirmations, proof rejections and registration status updates. Messages include registration number, participant/contact name, tournament/program when applicable, amount and payment/registration status. Contact email/phone remain available to the administrator for follow-up; private tracking credentials, Aadhaar, uploaded proof images and private Admin notes are not added to the email.
+The administrator receives only genuinely new tournament/individual/team registrations, new participant UPI proof revisions, and captured Razorpay payments. Initial manual registration plus proof produces one combined registration/payment-submitted email. Enquiries and trials are separate request kinds and do not email. Admin verification/rejection, approvals, notes/status edits, order creation, page visits, tracking and receipt downloads do not send notifications.
+
+Messages use responsive, inline-styled HTML tables plus a labelled plain-text alternative. Applicable rows include registration number, participant/contact, tournament, individual/team and team size, contact information, IST submission time, payment method, INR amount, registration/payment status and transaction/reference. Manual submissions say **Awaiting Admin Verification**. Values are HTML-escaped; Aadhaar, tracking credentials, uploaded proof images and private notes are excluded. A configured public HTTPS logo is optional; the message remains readable with images blocked. An Admin-panel link is included only when `PPC_PUBLIC_ORIGIN` is validated HTTPS.
 
 Registration idempotency and repeated payment-capture/webhook handling reuse deterministic outbox event IDs. Proof submissions are keyed to their proof revision. A failed email request never rolls back a saved registration or verified payment.
 
@@ -29,7 +31,8 @@ Notification entries are persisted before the website responds. Provider deliver
 
 ## Outbox and retry safety
 
-- Before automatic delivery and manual retry, the recipient and Admin-only policy are checked again. The final provider `to` address comes directly from `ADMIN_NOTIFICATION_EMAIL`.
+- At enqueue, immediately before sending, and during retry, the recipient and allowed-event policy are checked again. The final provider `to` address comes directly from `ADMIN_NOTIFICATION_EMAIL`.
+- Disallowed historical events (including manual Admin verification, rejection, status updates and duplicate initial proof notifications) are skipped with a reason, retaining original history. Only eligible submission events can retry.
 - Legacy/participant-directed pending entries are marked `skipped` with a reason. Their original recipient, body and history remain in MongoDB. They are never silently redirected to the administrator. Entries for an administrator address that no longer matches configuration are also skipped.
 - `npm.cmd run db:setup` applies this historical cleanup without sending emails. Admin outbox reads/retries and new notifications also enforce it, so forgetting the setup command cannot allow a historical participant email to be sent.
 - Missing configuration leaves Admin notifications pending. Invalid API access, sender errors, quota exhaustion, rate limiting and network failures also preserve pending notifications, with a sanitized error and retry time. Raw provider messages and credentials are not logged or exposed.

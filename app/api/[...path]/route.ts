@@ -1,3 +1,5 @@
+import {localMockTarget} from '../../../lib/local-mock-content.mjs';
+import {upiQrDownload,adminPaymentProof} from '../../../lib/payment-images';
 import { normaliseRegistrationEmail, validRegistrationEmail, registrationContactError, normaliseIndianMobile, indianMobileInternational } from '../../../lib/registration-contact.mjs';
 import { persistRegistration, ensureTracking, openTrackingCode, normaliseNumber, normaliseCode, trackingDigest, trackingLimits, TrackingLimitError, trackingSession, authorisedRegistration, trackingSessionId } from '../../../lib/registration-identity.mjs';
 import { registrationDocument } from '../../../lib/registration-document';
@@ -35,6 +37,8 @@ async function handle(req:Request){
  const session=await currentAccount(req,db,e.PPC_SESSION_SECRET);
  if(p.startsWith('auth/'))return passwordEndpoint(p,req,db,e,session);
  const admin=session?.account.role==='admin';
+ if(p==='upi-qr'&&req.method==='GET')return upiQrDownload(db,url.searchParams.get('id')||'',url.searchParams.get('open')==='1');
+ if(p==='admin/payment-proof'&&req.method==='GET'){if(!admin)return fail('Admin access required',403);return adminPaymentProof(db,url.searchParams.get('id')||'',url.searchParams.get('revision')||'',url.searchParams.get('download')==='1');}
  const staffSession=await currentAccount(req,db,e.PPC_SESSION_SECRET,'staff');
  const staff=!!staffSession;
  if(req.method==='GET'&&p==='session')return json({admin,staff,passwordMode:true,owner:session?.account.owner===true});
@@ -49,7 +53,7 @@ async function handle(req:Request){
  if(req.method==='GET'&&p==='status'){const email=emailConfiguration(e);return json({payments:!clientPreview()&&!!(e.RAZORPAY_KEY_ID&&e.RAZORPAY_KEY_SECRET),email:email.ready,...(admin?{emailConfiguration:email}:{}),backgroundRemoval:!!e.REMOVEBG_API_KEY});}
  if(p.startsWith('media/')&&req.method==='GET'){const key=decodeURIComponent(p.slice(6));if(!key.startsWith('public/')&&!admin)return fail('Not authorised',403);const obj=await fileStorage.get(key);if(!obj)return fail('File not found',404);return new Response(obj.body,{headers:{'Content-Type':obj.httpMetadata?.contentType||'application/octet-stream','Cache-Control':key.startsWith('public/')?'public, max-age=31536000, immutable':'private, no-store','X-Content-Type-Options':'nosniff','Content-Disposition':key.startsWith('public/')?'inline':'attachment'}})}
  if(p==='upload'&&req.method==='POST'){
-  await rateLimit(req,'upload');const form=await req.formData(),f=form.get('file') as File,scope=form.get('scope')==='public'?'public':'private';if(scope==='public'&&!admin)return fail('Admin access required',403);if(scope==='private'&&clientPreview())return fail('Uploads are disabled for this presentation',409);if(!f||!f.size||f.size>8*1024*1024)return fail('Choose a file under 8 MB');const bytes=await f.arrayBuffer(),a=new Uint8Array(bytes);let type='';if(a[0]===137&&a[1]===80&&a[2]===78&&a[3]===71)type='image/png';if(a[0]===255&&a[1]===216&&a[2]===255)type='image/jpeg';if(String.fromCharCode(...a.slice(0,4))==='RIFF'&&String.fromCharCode(...a.slice(8,12))==='WEBP')type='image/webp';if(scope==='private'&&String.fromCharCode(...a.slice(0,5))==='%PDF-')type='application/pdf';if(!type)return fail('Use PNG, JPEG or WebP. Participant documents may also be PDF.');let output: ArrayBuffer|Blob=bytes;if(form.get('remove')==='true'){if(!admin)return fail('Admin access required',403);if(!e.REMOVEBG_API_KEY)return fail('Automatic background removal needs a remove.bg API key. Upload a transparent PNG instead.',503);const body=new FormData();body.append('image_file',new Blob([bytes],{type}));body.append('size','auto');const result=await fetch('https://api.remove.bg/v1.0/removebg',{method:'POST',headers:{'X-Api-Key':e.REMOVEBG_API_KEY},body,signal:AbortSignal.timeout(30000)});if(!result.ok)return fail('Background removal could not complete. Try a transparent PNG.',502);output=await result.blob();type='image/png'}
+  await rateLimit(req,'upload');const form=await req.formData(),f=form.get('file') as File,scope=form.get('scope')==='public'?'public':'private';if(scope==='public'&&!admin)return fail('Admin access required',403);if(scope==='private'&&clientPreview())return fail('Uploads are disabled for this presentation',409);if(!f||!f.size||f.size>8*1024*1024)return fail('Choose a file under 8 MB');const bytes=await f.arrayBuffer(),a=new Uint8Array(bytes);let type='';if(a[0]===137&&a[1]===80&&a[2]===78&&a[3]===71)type='image/png';if(a[0]===255&&a[1]===216&&a[2]===255)type='image/jpeg';if(String.fromCharCode(...a.slice(0,4))==='RIFF'&&String.fromCharCode(...a.slice(8,12))==='WEBP')type='image/webp';if(scope==='private'&&String.fromCharCode(...a.slice(0,5))==='%PDF-')type='application/pdf';if(!type)return fail('Use PNG, JPEG or WebP. Participant documents may also be PDF.');let output: ArrayBuffer|Blob=bytes;if(scope==='private'&&form.get('remove')==='true')return fail('Private uploads must preserve the original file. Background removal is available only for public images.');if(form.get('remove')==='true'){if(!admin)return fail('Admin access required',403);if(!e.REMOVEBG_API_KEY)return fail('Automatic background removal needs a remove.bg API key. Upload a transparent PNG instead.',503);const body=new FormData();body.append('image_file',new Blob([bytes],{type}));body.append('size','auto');const result=await fetch('https://api.remove.bg/v1.0/removebg',{method:'POST',headers:{'X-Api-Key':e.REMOVEBG_API_KEY},body,signal:AbortSignal.timeout(30000)});if(!result.ok)return fail('Background removal could not complete. Try a transparent PNG.',502);output=await result.blob();type='image/png'}
   let uploadToken=String(form.get('registrationToken')||'');
   const tracked=trackingSessionId(req);
   if(scope==='private'&&tracked&&!uploadToken){const row=await registrations(db).findOne({_id:tracked});if(row)uploadToken=row.token;}
@@ -78,7 +82,7 @@ async function handle(req:Request){
   return new Response(Buffer.from(bytes),{headers:{'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="'+filename+(receipt?'-receipt':'-registration')+'.pdf"','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
  }
  if(p==='register'&&req.method==='POST'){
-  await rateLimit(req,'register');const b:any=await requestObject(req);if(typeof b.name!=='string'||typeof b.email!=='string'||typeof b.phone!=='string'||(b.target!==undefined&&typeof b.target!=='string'))return fail('Enter valid registration details');if(b.answers!==undefined&&(!b.answers||typeof b.answers!=='object'||Array.isArray(b.answers)))return fail('Invalid form answers');if(b.website)return fail('Unable to submit');b.email=normaliseRegistrationEmail(b.email);b.name=b.name.trim();b.phone=b.phone.trim();const contactError=registrationContactError(b);if(contactError)return fail(contactError);b.phone=normaliseIndianMobile(b.phone);if(b.consent!==true)return fail('Please accept the privacy policy');if(!['trial','enquiry','tournament','team'].includes(b.kind))return fail('Invalid registration type');const c=await getContent();
+  await rateLimit(req,'register');const b:any=await requestObject(req);if(typeof b.name!=='string'||(typeof b.email!=='string'&&!(b.email===undefined&&localMockTarget(b.target)))||typeof b.phone!=='string'||(b.target!==undefined&&typeof b.target!=='string'))return fail('Enter valid registration details');if(b.answers!==undefined&&(!b.answers||typeof b.answers!=='object'||Array.isArray(b.answers)))return fail('Invalid form answers');if(b.website)return fail('Unable to submit');b.email=normaliseRegistrationEmail(b.email);b.name=b.name.trim();b.phone=b.phone.trim();const previewContent=localMockTarget(b.target)?await getContent():undefined;const previewEvent=previewContent?.tournaments.find((item:{id:string;previewEmailOptional?:boolean})=>item.id===b.target);const contactError=registrationContactError(b,{emailOptional:localMockTarget(b.target)&&previewEvent?.previewEmailOptional===true});if(contactError)return fail(contactError);b.phone=normaliseIndianMobile(b.phone);if(b.consent!==true)return fail('Please accept the privacy policy');if(!['trial','enquiry','tournament','team'].includes(b.kind))return fail('Invalid registration type');const c=previewContent||await getContent();
   if(clientPreview())return json({previewOnly:true,amount:0});
   const isTournament=['tournament','team'].includes(b.kind);
   let amount=0,target=b.target||'',capacity=1000000;
@@ -97,7 +101,7 @@ async function handle(req:Request){
     });
   };
   const existing=await registrations(db).findOne({_id:b.id});
-  if(existing){if(existing.token!==token)return fail('Submission already exists',409);await notifyNewRequest(existing);return reply(existing,true);}
+  if(existing){if(existing.token!==token)return fail('Submission already exists',409);return reply(existing,true);}
   if(isTournament){const event=c.tournaments.find((x:any)=>x.id===target);if(!event||event.status!=='open')return fail('This tournament is not open for registration');if(event.deadline&&new Date(event.deadline+'T23:59:59+05:30').getTime()<Date.now())return fail('Registration has closed');const choices=registrationChoices(event);
     const choice=b.registrationChoice??(choices.length===1?choices[0]:undefined);
     if(!choices.includes(choice))return fail('Choose an available registration option.');
@@ -135,7 +139,7 @@ async function handle(req:Request){
     paymentMethod,
     ...(receiptEvent?{manualQrImage:receiptEvent.manualQrImage,manualPayee:receiptEvent.manualPayee,manualUpiId:receiptEvent.manualUpiId,manualInstructions:receiptEvent.manualInstructions}:{}),
     ...(manualProof?{manualProof,manualProofRevision:crypto.randomUUID(),...(manualProof.transactionId?{manualTransactionKey:manualProof.transactionId.toUpperCase()}:{}),manualSubmittedAt:new Date().toISOString()}:{}),
-    receiptTitle:receiptEvent?.title,receiptClub:c.branding.name,receiptFields,receiptFieldOrder:formFields.map((field:{id:string})=>field.id),
+    receiptTitle:receiptEvent?.title,receiptClub:c.branding.name,receiptLogo:c.branding.logo,receiptFields,receiptFieldOrder:formFields.map((field:{id:string})=>field.id),
     receiptHeading:receiptEvent?.receiptHeading,receiptNote:receiptEvent?.receiptNote,confirmationHeading:receiptEvent?.confirmationHeading};
   if(JSON.stringify(detail).length>50000)return fail('Registration too large');
   let inserted=false;let row:any;
@@ -152,7 +156,7 @@ async function handle(req:Request){
   }
   if(!inserted){
     const existing=await registrations(db).findOne({_id:b.id});
-    if(existing){if(existing.token!==token)return fail('Submission already exists',409);await notifyNewRequest(existing);return reply(existing,true);}
+    if(existing){if(existing.token!==token)return fail('Submission already exists',409);return reply(existing,true);}
     if(manualProof?.transactionId&&await registrations(db).findOne({'data.manualTransactionKey':manualProof.transactionId.toUpperCase()}))return fail('This transaction ID has already been submitted.',409);
     return fail('This event has reached capacity',409);
   }await notifyNewRequest(row);return reply(row)
@@ -169,7 +173,7 @@ async function handle(req:Request){
     tournament:details.title,fields:details.fields,team:details.team,amount:row.amount,
     transactionReference:row.data.paymentMethod==='manual'?row.data.manualProof?.transactionId||'':row.payment_id||'',
     rejectionReason:row.status==='rejected'?row.data.participantRejectionReason||'Please contact the club.':'',
-    event:row.data.paymentMethod==='manual'?(()=>{const event=(row as any).data;return {manualQrImage:event.manualQrImage,manualPayee:event.manualPayee,manualUpiId:event.manualUpiId,manualInstructions:event.manualInstructions};})():undefined});
+    event:row.data.paymentMethod==='manual'?(()=>{const event=(row as any).data;return {id:row.target,manualQrImage:event.manualQrImage,manualPayee:event.manualPayee,manualUpiId:event.manualUpiId,manualInstructions:event.manualInstructions,...(localMockTarget(row.target)?{previewQrNonPayable:true}:{} )};})():undefined});
  }
  if(p==='manual-proof'&&req.method==='POST'){
   await rateLimit(req,'register');
@@ -269,7 +273,7 @@ async function handle(req:Request){
   if(typeof b.id!=='string'||!['verify','reject'].includes(b.action)||typeof b.expectedRevision!=='string')return fail('Invalid payment review');
   const row=await registrations(db).findOne({_id:b.id,'data.paymentMethod':'manual'});
   if(!row)return fail('Payment not found',404);
-  if(row.payment_status==='paid'&&b.action==='verify'){await notifyRegistration('payment-confirmed',row);return json({saved:true,record:visibleRegistration(row)});}
+  if(row.payment_status==='paid'&&b.action==='verify'){return json({saved:true,record:visibleRegistration(row)});}
   if(row.data.manualProofRevision!==b.expectedRevision)return fail('Payment proof changed. Refresh and review the latest proof.',409);
   if(row.status==='rejected')return fail('Restore the registration before verifying payment.',409);
   const note=typeof b.note==='string'?b.note.trim().slice(0,1000):'';
@@ -277,7 +281,6 @@ async function handle(req:Request){
   const updated=await reviewManualPayment(db,row,b.action,session!.account.username,note);
   if(!updated)return fail('This payment has already been reviewed. Refresh the request.',409);
   await log(session!.account.username,`Manual payment ${b.action}: ${row.id}`);
-  await notifyRegistration(b.action==='verify'?'payment-confirmed':'manual-proof-rejected',updated);
   return json({saved:true,record:visibleRegistration(updated)});
  }
  if(p==='content'&&req.method==='PUT'){const b:any=await requestObject(req);if(!contentKeys.includes(b.key))return fail('Unknown content section');if(JSON.stringify(b.value).length>200000)return fail('Content too large');if(['branding','pages'].includes(b.key)){if(!b.value||Array.isArray(b.value)||typeof b.value!=='object')return fail('Invalid content');for(const [k,v] of Object.entries(b.value)){if(typeof v!=='string')return fail('Content must be text');if(['logo','hero','heroBackdrop','image','instagram','facebook','map'].includes(k)&&v&&!/^https:\/\//.test(v as string)&&!/^\/(?!\/)/.test(v as string))return fail('Use an HTTPS URL or uploaded image');}if(b.key==='branding'&&['registrationPrefix','registrationSuffix'].some(key=>b.value[key]!==undefined&&(b.value[key].length>20||/[\r\n]/.test(b.value[key]))))return fail('Registration prefix and suffix must be at most 20 characters');if(b.key==='branding'&&b.value.heroBackdropMode!==undefined&&!['photo','colour'].includes(b.value.heroBackdropMode))return fail('Choose a photo or solid banner colour');if(b.key==='branding'&&!/^#[a-fA-F0-9]{6}$/.test(b.value.accent||''))return fail('Use a valid hex brand colour')}else{if(!Array.isArray(b.value)||b.value.length>500)return fail('Invalid content list');const ids=new Set();for(const item of b.value){if(!item||typeof item!=='object'||typeof item.id!=='string'||!item.id||ids.has(item.id))return fail('Every record needs a unique ID');ids.add(item.id);if(b.key==='tournaments'){
@@ -303,7 +306,6 @@ async function handle(req:Request){
   if(!old)return fail('Not found',404);
   if(b.participantRejectionReason!==undefined)await registrations(db).updateOne({_id:b.id},{$set:{'data.participantRejectionReason':String(b.participantRejectionReason).trim().slice(0,1000)}});
   await log(session!.account.username,'Updated registration '+b.id);
-  if(old.status!==b.status)await notifyRegistration('registration-updated',{...old,status:b.status});
   return json({saved:true});
  }
  if(p==='audit'&&req.method==='GET')return json(await db.collection('audit').find({},{projection:{_id:0}}).sort({created:-1}).limit(100).toArray());

@@ -8,6 +8,7 @@ const eslintConfig = defineConfig([
   globalIgnores([
     "dist/**",
     ".next-registration-tests/**",
+    ".next-content-preview/**",
     ".local-backups/**",
     ".vinext/**",
     ".wrangler/**",

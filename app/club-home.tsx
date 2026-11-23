@@ -79,7 +79,7 @@ export default function ClubHome({ header, content, Link, program, formatFee, fo
             <h2>Karate classes</h2>
             <Link to="/training" className="text-link">All classes <ArrowRight size={17}/></Link>
           </div>
-          {training.length ? <div className="grid three training-grid">{training.slice(0, 3).map(program)}</div>
+          {training.length ? <div className="grid three training-grid">{training.map(program)}</div>
             : <div className="empty"><h3>Class details coming soon</h3><Link to="/contact" className="text-link">Contact the club <ArrowRight size={17}/></Link></div>}
         </div>
       </section>
@@ -93,9 +93,10 @@ export default function ClubHome({ header, content, Link, program, formatFee, fo
             <ArrowRight size={17} aria-hidden="true"/>
           </Link>
         </div>
+        {photos.some((photo: {album?:string})=>photo.album==='Karate worldwide')&&<p className="gallery-source-note">Karate worldwide: photographs from other dojos and competitions.</p>}
         {photos.length ? <div className="home-photo-grid">
           {photos.map((photo: any) => <Link key={photo.id} to="/gallery" className="home-photo">
-            <img src={photo.url} alt="" loading="lazy"/><span>{photo.title}<ArrowUpRight size={16}/></span>
+            <img src={photo.url} alt={photo.alt||photo.title} width={photo.width} height={photo.height} loading="lazy" decoding="async"/><span>{photo.title}<ArrowUpRight size={16}/></span>
           </Link>)}
         </div> : <div className="empty"><ImageIcon size={24}/><p>No photos added yet.</p></div>}
       </section>

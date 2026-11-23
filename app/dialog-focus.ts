@@ -15,6 +15,12 @@ export function useDialogFocus(open: boolean, onClose: () => void) {
     )].filter(element => element.offsetParent !== null && element.tabIndex !== -1);
     controls()[0]?.focus();
     const onKey = (event: KeyboardEvent) => {
+      const activeNativeDialog = document.querySelector('dialog[open]');
+      if (activeNativeDialog && activeNativeDialog !== dialog) return;
+      // A native dialog in the top layer owns its own keys. Use the retained
+      // event path because its close handler may already have unmounted it.
+      const nested = event.composedPath().find(node => node instanceof HTMLElement && node.tagName === 'DIALOG');
+      if (nested && nested !== dialog) return;
       if (event.key === 'Escape') { event.preventDefault(); close.current(); }
       if (event.key !== 'Tab') return;
       const elements = controls();

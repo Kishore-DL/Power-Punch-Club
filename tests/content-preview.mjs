@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import {parseEnv} from 'node:util';
+import {readFile,mkdir} from 'node:fs/promises';
+import {MongoClient} from 'mongodb';
+import {chromium,expect} from '@playwright/test';
+import {localContentTarget} from '../lib/content-import.mjs';
+const settings=parseEnv(await readFile(process.env.PPC_CONTENT_PREVIEW_ENV||'.env.content-preview','utf8')),database=localContentTarget(settings),origin=process.env.PPC_TEST_URL||'http://localhost:3020';
+assert.equal(settings.PPC_PUBLIC_ORIGIN,origin);assert.equal(settings.BREVO_API_KEY,'');assert.equal(settings.RAZORPAY_KEY_SECRET,'');
+const mongo=new MongoClient(settings.MONGODB_URI),db=mongo.db(database),browser=await chromium.launch({headless:true});
+const original=(await (await fetch(origin+'/api/content')).json()).gallery;let cookie;
+async function api(body){const r=await fetch(origin+'/api/content',{method:'PUT',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify(body)});assert.equal(r.status,200,await r.text());}
+try{
+  const login=await fetch(origin+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:'admin',username:settings.PPC_BOOTSTRAP_ADMIN_ID,password:settings.PPC_BOOTSTRAP_ADMIN_PASSWORD})});assert.equal(login.status,200);cookie=login.headers.getSetCookie().find(v=>v.includes('_session_v2=')).split(';')[0];
+  assert.equal(original.length,8);const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));await mkdir('outputs/content-preview-tests',{recursive:true});
+  for(const width of [360,390,1440]){
+    await page.setViewportSize({width,height:1000});await page.goto(origin+'/gallery');await expect(page.locator('.gallery-item')).toHaveCount(8);await expect(page.getByText(/These are not Power Punch Club events/)).toBeVisible();
+    for(const image of await page.locator('.gallery-item img').all()){await image.scrollIntoViewIfNeeded();await expect.poll(()=>image.evaluate(i=>i.complete&&i.naturalWidth>0)).toBe(true);assert.ok(await image.getAttribute('alt'));const ratio=await image.evaluate(i=>{const r=i.getBoundingClientRect();return Math.abs(r.width/r.height-i.naturalWidth/i.naturalHeight)});assert.ok(ratio<.01)}
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.locator('.gallery-grid').screenshot({path:'outputs/content-preview-tests/gallery-'+width+'.png'});
+    await page.locator('.gallery-photo-button').first().click();const dialog=page.getByRole('dialog');await expect(dialog).toBeVisible();await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
+    await page.goto(origin);await expect(page.locator('.home-photo')).toHaveCount(3);for(const img of await page.locator('.home-photo img').all()){const url=await img.getAttribute('src');assert.ok(original.some(p=>p.url===url));await img.scrollIntoViewIfNeeded();await expect.poll(()=>img.evaluate(i=>i.complete&&i.naturalWidth>0)).toBe(true)}await page.locator('.home-photo-grid').screenshot({path:'outputs/content-preview-tests/home-gallery-'+width+'.png'});assert.ok(await page.locator('.campaign-art-cutout').count());
+    await page.goto(origin+'/tournaments');assert.equal(await page.locator('.tournament-card').filter({has:page.getByRole('heading',{name:'power punch club',exact:true})}).count(),0);await page.goto(origin+'/tournaments/89e13617-2adb-4ebe-b9e4-9f4f8db630c3');await expect(page.getByRole('heading',{name:'EVENT NOT FOUND.'})).toBeVisible();
+  }
+  await page.context().addCookies([{name:cookie.split('=')[0],value:cookie.slice(cookie.indexOf('=')+1),url:origin,httpOnly:true,secure:true,sameSite:'Lax'}]);
+  async function galleryAdmin(){await page.setViewportSize({width:1440,height:1000});await page.goto(origin+'/admin');await page.locator('.admin-shell').waitFor();await page.getByRole('button',{name:/Photo & video gallery/}).click()}
+  await galleryAdmin();const editor=page.locator('.item-editor').first();await editor.locator('.item-toggle').click();await editor.getByLabel('Title',{exact:true}).fill('World championship kumite - edited');await page.getByRole('button',{name:'SAVE CHANGES',exact:true}).click();await expect(page.getByText('All changes saved',{exact:false})).toBeVisible();await galleryAdmin();await expect(page.locator('.item-editor').first()).toContainText('World championship kumite - edited');
+  await page.locator('.item-editor').nth(1).getByRole('button',{name:'Move item up',exact:true}).click();await page.getByRole('button',{name:'SAVE CHANGES',exact:true}).click();await expect(page.getByText('All changes saved',{exact:false})).toBeVisible();await galleryAdmin();await expect(page.locator('.item-editor').first()).toContainText(original[1].title);
+  page.on('dialog',d=>d.accept());await page.locator('.item-editor').last().getByRole('button',{name:'Delete item',exact:true}).click();await page.getByRole('button',{name:'SAVE CHANGES',exact:true}).click();await expect(page.getByText('All changes saved',{exact:false})).toBeVisible();await galleryAdmin();await expect(page.locator('.item-editor')).toHaveCount(7);
+  await api({key:'gallery',value:original});await page.getByRole('button',{name:'Tournaments',exact:true}).click();await page.locator('.item-toggle').first().click();await expect(page.getByRole('combobox',{name:'Registration status',exact:true})).toHaveValue('draft');await expect(page.getByRole('textbox',{name:/^UPI QR image/})).toHaveValue('');
+  const draft=await db.collection('content').findOne({_id:'tournaments'});assert.equal(draft.value[0].registrationMode,'disabled');assert.equal(draft.value[0].manualPaymentEnabled,false);assert.equal(await db.collection('requests').countDocuments({}),0);assert.equal(await db.collection('outbox').countDocuments({}),0);assert.deepEqual(errors,[]);
+  console.log('Content preview browser checks passed: persisted shared 8-photo gallery, full images/alt/credits, 360/390/1440 layouts, lightbox/Escape, unchanged hero, disabled unpublished draft, Admin edit/reorder/remove/save/refresh, no registrations/payments/notifications.');
+}finally{if(cookie)await api({key:'gallery',value:original});await browser.close();await mongo.close()}

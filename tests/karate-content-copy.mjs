@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {karateContentCopy} from '../lib/karate-content-copy.mjs';
+const record={id:'local-karate-kids-v1',localOnlyPreview:true,title:'Kids Beginner Karate',description:'Basics, discipline and coordination. Fictional local-preview class.',fee:1000,feePeriod:'Illustrative monthly fee',image:'/gallery/karate-worldwide/06-flexibility.webp',schedule:'Monday, Wednesday, Friday',custom:'Admin entered wording'};
+const cleaned=karateContentCopy(record);
+assert.equal(cleaned.description,'Basics, discipline and coordination.');assert.equal(cleaned.feePeriod,'Monthly fee');
+for(const key of ['id','localOnlyPreview','title','fee','image','schedule','custom'])assert.deepEqual(cleaned[key],record[key]);
+assert.deepEqual(karateContentCopy(cleaned),cleaned);
+assert.equal(karateContentCopy({description:'An Admin edited description'}).description,'An Admin edited description');
+assert.equal(karateContentCopy({receiptNote:'Fictional local preview only. No real payment was collected.'}).receiptNote,'');
+assert.equal(karateContentCopy({rules:'Reporting time: 8:00 AM IST.\n- Respect opponents and officials.\n- This is a fictional preview. Do not travel to the venue or make a payment.'}).rules,'Reporting time: 8:00 AM IST.\n- Respect opponents and officials.');
+console.log('Content wording tests passed: exact replacements, operational rules/fields preserved, later Admin edits retained, idempotent cleanup.');

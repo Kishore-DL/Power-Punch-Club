@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {readFile} from 'node:fs/promises';
+import {appendSelected,localContentTarget,validateContentPackage} from '../lib/content-import.mjs';
+const manifest=JSON.parse(await readFile('content/local-gallery-tournaments.json','utf8'));
+await validateContentPackage(manifest,'public');
+assert.equal(manifest.gallery.length,8);
+for(const settings of [{MONGODB_URI:'mongodb+srv://example.invalid',MONGODB_DATABASE:'ppc_preview_gallery'}, {MONGODB_URI:'mongodb://remote.invalid:27017',MONGODB_DATABASE:'ppc_preview_gallery'}, {MONGODB_URI:'mongodb://127.0.0.1:27017',MONGODB_DATABASE:'power_punch_club'}])assert.throws(()=>localContentTarget(settings));
+assert.equal(localContentTarget({MONGODB_URI:'mongodb://127.0.0.1:37029',MONGODB_DATABASE:'ppc_preview_gallery_v1'}),'ppc_preview_gallery_v1');
+const existing=[{id:manifest.gallery[0].id,title:'Admin edited this caption'},{id:'unrelated',title:'Preserve me'}],merged=appendSelected(existing,manifest.gallery);
+assert.deepEqual(merged.value.slice(0,2),existing);assert.equal(merged.added,7);assert.equal(appendSelected(merged.value,manifest.gallery).added,0);
+assert.throws(()=>appendSelected({},manifest.gallery));
+for(const patch of [{status:'open'},{registrationMode:'free'},{manualPaymentEnabled:true},{manualQrImage:'/avatar.webp'}])await assert.rejects(()=>validateContentPackage({...manifest,tournaments:[{...manifest.tournaments[0],...patch}]},'public'));
+await assert.rejects(()=>validateContentPackage({...manifest,assets:[{...manifest.assets[0],url:'/api/media/private%2Fsecret'}]},'public'));
+await assert.rejects(()=>validateContentPackage({...manifest,assets:[{...manifest.assets[0],sha256:'wrong'}]},'public'));
+console.log('Content import checks passed: 8 licensed hash-verified assets, safe loopback target, append-only/idempotent merge, edited/unrelated record preservation, private asset rejection and disabled draft guards.');

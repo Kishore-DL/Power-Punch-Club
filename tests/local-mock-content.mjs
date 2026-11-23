@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {localMockEnabled,localMockTarget,mockTournamentId,scopeLocalMockContent} from '../lib/local-mock-content.mjs';
+import {registrationContactError} from '../lib/registration-contact.mjs';
+const local={MONGODB_URI:'mongodb://127.0.0.1:37029',MONGODB_DATABASE:'ppc_preview_gallery',PPC_LOCAL_MOCK_CONTENT:'true'};
+assert.ok(localMockEnabled(local));assert.ok(localMockTarget(mockTournamentId,local));
+for(const patch of [{MONGODB_URI:'mongodb+srv://example.invalid'},{MONGODB_DATABASE:'power_punch_club'},{PPC_LOCAL_MOCK_CONTENT:'false'}])assert.equal(localMockEnabled({...local,...patch}),false);
+const content={tournaments:[{id:mockTournamentId,localOnlyPreview:true},{id:'genuine',previewEmailOptional:true,previewQrNonPayable:true}],training:[{id:'local-karate-kids-v1',localOnlyPreview:true},{id:'genuine-class'}],forms:[{id:'local-karate-form',localOnlyPreview:true}],gallery:[{id:'untouched'}]};
+const preview=scopeLocalMockContent(structuredClone(content),local);assert.equal(preview.tournaments[0].previewEmailOptional,true);assert.equal(preview.tournaments[0].previewQrNonPayable,true);assert.equal(preview.tournaments[1].previewEmailOptional,undefined);
+const live=scopeLocalMockContent(structuredClone(content),{});assert.equal(live.tournaments.length,1);assert.equal(live.training.length,1);assert.equal(live.forms.length,0);assert.deepEqual(live.gallery,content.gallery);
+const contact={name:'Fictional participant',email:'',phone:'9999999999'};assert.match(registrationContactError(contact),/email/);assert.equal(registrationContactError(contact,{emailOptional:true}),'');assert.match(registrationContactError({...contact,email:'wrong'},{emailOptional:true}),/email/);assert.match(registrationContactError({...contact,phone:'123'},{emailOptional:true}),/10 digits/);
+console.log('Local mock guards passed: loopback/flag/database isolation, production exclusion, QR/email flags cannot affect genuine events, optional empty email and unchanged invalid contact rejection.');

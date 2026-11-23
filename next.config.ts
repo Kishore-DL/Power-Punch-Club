@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   distDir: process.env.PPC_BUILD_DIR || '.next',
+  // Keep the isolated regression build usable on local machines running Docker.
+  ...(['.next-registration-tests','.next-content-preview'].includes(process.env.PPC_BUILD_DIR||'')?{experimental:{cpus:2}}:{}),
   poweredByHeader: false,
   async headers() {
     return [{ source: '/:path*', headers: [

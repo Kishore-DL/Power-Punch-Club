@@ -1,3 +1,4 @@
+import {scopeLocalMockContent} from './local-mock-content.mjs';
 import { after } from 'next/server';
 import { queueAdminNotification, registrationNotification, deliverAdminNotification } from './admin-notifications.mjs';
 import type { Registration } from './mongodb';
@@ -34,26 +35,26 @@ export async function getContent() {
   }
   if(preview)content.branding.previewOnly='true';
   else delete content.branding.previewOnly;
-  return plainStarterCopy(content);
+  return plainStarterCopy(scopeLocalMockContent(content));
 }
 export async function log(actor:string,action:string){
   await database().collection('audit').insertOne({id:crypto.randomUUID(),actor,action,created:new Date().toISOString()});
 }
 export async function hmac(secret:string,value:string){const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);return [...new Uint8Array(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(value)))].map(x=>x.toString(16).padStart(2,'0')).join('')}
 export function safeEqual(a:string,b:string){if(a.length!==b.length)return false;let c=0;for(let i=0;i<a.length;i++)c|=a.charCodeAt(i)^b.charCodeAt(i);return c===0}
-export type NotificationEvent='registration-created'|'enquiry-created'|'trial-created'|'manual-proof-submitted'|'manual-proof-rejected'|'payment-confirmed'|'registration-updated';
+export type NotificationEvent='registration-created'|'manual-proof-submitted'|'payment-confirmed';
 export async function notifyRegistration(event:NotificationEvent,row:Registration){
   try{
     let tournament:string|undefined;
     if(!row.data.receiptTitle&&row.target){try{const content=await getContent();tournament=[...content.tournaments,...content.training].find((item:{id:string;title?:string})=>item.id===row.target)?.title;}catch{}}
-    const queued=await queueAdminNotification(database(),registrationNotification(event,row,tournament),{deferDelivery:true});
-    if(queued.id)after(async()=>{try{await deliverAdminNotification(database(),queued.id);}catch{console.error('Admin email delivery deferred; the pending notification remains in the outbox.');}});
+    const notification=registrationNotification(event,row,tournament,{logo:row.data.receiptLogo,origin:runtime().PPC_PUBLIC_ORIGIN});
+    const queued=await queueAdminNotification(database(),notification,{deferDelivery:true});
+    if(queued.id&&queued.status!=='skipped')after(async()=>{try{await deliverAdminNotification(database(),queued.id);}catch{console.error('Admin email delivery deferred; the pending notification remains in the outbox.');}});
     return queued;
   }catch{console.error('Admin notification could not be queued; the website request remains saved.');}
 }
 export async function notifyNewRequest(row:Registration){
-  await notifyRegistration(row.kind==='enquiry'?'enquiry-created':row.kind==='trial'?'trial-created':'registration-created',row);
-  if(row.data.paymentMethod==='manual'&&row.data.manualProofRevision)await notifyRegistration('manual-proof-submitted',row);
+  if(['tournament','team'].includes(row.kind))await notifyRegistration('registration-created',row);
 }
 export async function rateLimit(req:Request, scope='write'){
   const minutes=Math.floor(Date.now()/600000);

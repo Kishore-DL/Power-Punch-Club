@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {contentFingerprint,planSelectedRecords} from '../lib/content-transfer-plan.mjs';
+const records={gallery:[{id:'new',title:'New photo'},{id:'existing',title:'Local caption'}],training:[{id:'local-class',title:'Class',localOnlyPreview:true}],tournaments:[{id:'event',title:'Incomplete event'}]},target={gallery:[{id:'existing',title:'Live caption'}],tournaments:[{id:'event',title:'Existing live event'}]};
+const plan=planSelectedRecords(records,target);
+assert.equal(plan.find(row=>row.id==='new').action,'propose-add');
+assert.equal(plan.find(row=>row.id==='existing').action,'conflict-preserve-existing');
+assert.equal(plan.find(row=>row.id==='local-class').action,'hold-local-only');
+assert.equal(plan.find(row=>row.id==='event').action,'conflict-preserve-existing');
+assert.equal(contentFingerprint({b:1,a:2}),contentFingerprint({a:2,b:1}));
+assert.notEqual(contentFingerprint({a:1}),contentFingerprint({a:2}));
+assert.equal(planSelectedRecords({gallery:[target.gallery[0]]},target)[0].action,'skip-identical');
+assert.equal(target.gallery[0].title,'Live caption');
+console.log('Content transfer dry-run checks passed: add/hold/identical/conflict decisions, stable rollback fingerprints and no mutation of target records.');

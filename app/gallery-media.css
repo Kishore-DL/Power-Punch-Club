@@ -1,0 +1,15 @@
+/* Confined to gallery images; hero, proof and tournament styles are untouched. */
+.club-public.rose-glass .home-photo img,.club-public.rose-glass .gallery-item img{width:100%;height:auto;max-height:none;aspect-ratio:auto;object-fit:contain;object-position:center;transform:none}
+.club-public .gallery-item{align-self:start;text-align:left;min-width:0}
+.club-public .gallery-photo-button{display:block;width:100%;padding:0;text-align:left}
+.club-public .gallery-photo-button>span{display:block;padding:14px 16px;font-weight:600}
+.club-public .gallery-photo-button small{display:block;font-weight:400}
+.club-public .gallery-credit{padding:0 16px 14px;margin:0;font-size:12px;line-height:1.6;overflow-wrap:anywhere;color:var(--surface-text,#384254)}
+.club-public .gallery-credit a{text-decoration:underline;text-underline-offset:2px;margin-right:6px}
+.club-public .gallery-source-note{max-width:760px;margin-bottom:24px;font-size:14px}
+.gallery-photo-dialog{width:min(1000px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:48px 16px 16px;border:0;border-radius:12px;overflow:auto;background:#fff;color:#202330}
+.gallery-photo-dialog::backdrop{background:#000b}
+.gallery-photo-dialog>button{position:absolute;top:6px;right:8px;display:grid;place-items:center;min-width:40px;min-height:40px;background:#fff;border-radius:8px}
+.gallery-photo-dialog>img{width:auto;max-width:100%;height:auto;max-height:72dvh;object-fit:contain;margin:auto}
+.gallery-photo-dialog>p{margin:12px 0 0;font-size:14px;line-height:1.6}
+.gallery-photo-dialog .gallery-credit{font-size:12px}

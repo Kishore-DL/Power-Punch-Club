@@ -40,7 +40,9 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts",
     ".next-registration-tests/types/**/*.ts",
-    ".next-registration-tests/dev/types/**/*.ts"
+    ".next-registration-tests/dev/types/**/*.ts",
+    ".next-content-preview/types/**/*.ts",
+    ".next-content-preview/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",
