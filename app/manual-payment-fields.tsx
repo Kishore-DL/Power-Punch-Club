@@ -17,7 +17,7 @@ export default function ManualPaymentFields({ event, proof, onChange, onUpload, 
       </>}
       {event.manualPayee && <p><strong>Payee</strong> {event.manualPayee}</p>}
       {event.manualUpiId && <p className="manual-upi-id"><strong>UPI ID</strong> {event.manualUpiId}</p>}
-      {event.manualInstructions && <p style={{ whiteSpace: 'pre-wrap' }}>{event.manualInstructions}</p>}
+      {event.manualInstructions && event.manualInstructions.trim()!=='Enter a transaction reference or upload a payment screenshot for review.' && <p style={{ whiteSpace: 'pre-wrap' }}>{event.manualInstructions}</p>}
       <p>Check the payee and amount in your UPI app. After payment, enter the transaction ID or upload a screenshot. The club will verify your payment.</p>
       <label>UPI transaction ID / UTR
         <input autoComplete="off" maxLength={100} value={proof.transactionId}

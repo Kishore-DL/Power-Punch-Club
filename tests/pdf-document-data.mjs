@@ -58,9 +58,11 @@ try{
     let pages=0;
     try{pages=pdf.numPages;for(let i=1;i<=pdf.numPages;i++){
       const pageText=(await (await pdf.getPage(i)).getTextContent()).items.map(item=>item.str).join(' ');text+=pageText+'\n';
-      if(pageText.includes('Private tracking details'))assert.ok(pageText.includes(registered.trackingCode)&&pageText.includes('How to track'),'Short private tracking section stays together');
+      if(pageText.includes('Private tracking details'))assert.ok(pageText.includes(registered.trackingCode),'Short private tracking section stays together');
       if(pageText.includes('Payment details'))assert.ok(pageText.includes(scenario.status),'Short payment section stays together');
     }}finally{await task.destroy();}
+    assert.doesNotMatch(text,/How to track|enter BOTH|Keep the code private: it grants access to this registration\.|https?:\/\/[^\s]+\/track-registration/);
+    assert.ok(text.includes(registered.registrationNumber)&&text.includes(registered.trackingCode),'Separate registration number and private code remain available');
     assert.ok(text.includes(scenario.title)&&text.includes(scenario.status),scenario.name);
     assert.ok(text.includes('Original tournament snapshot'));assert.ok(!text.includes('MODIFIED-'));
     assert.ok(text.includes('Stored first field')&&text.includes('Zero value')&&text.includes('Boolean answer'));

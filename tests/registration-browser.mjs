@@ -32,7 +32,7 @@ try{
   const pdf=await getDocument({data:new Uint8Array(await readFile(file)),useSystemFonts:true}).promise;
   let text='';for(let i=1;i<=pdf.numPages;i++){text+=(await (await pdf.getPage(i)).getTextContent()).items.map(item=>item.str).join(' ')+'\n';}
   const number=text.match(/Registration number:?\s*([A-Z0-9-]+)/)?.[1],code=text.match(/Private tracking code:?\s*([A-Z0-9]{6})/)?.[1];
-  assert.equal(number,firstNumber);assert.equal(code,firstCode);assert.match(text,/No payment required/);assert.match(text,/IST/);assert.match(text,/grants access/);
+  assert.equal(number,firstNumber);assert.equal(code,firstCode);assert.match(text,/No payment required/);assert.match(text,/IST/);assert.doesNotMatch(text,/How to track|enter BOTH|Keep the code private|grants access/);
   // Starting again must leave completed records recoverable and use fresh credentials.
   page.once('dialog',dialog=>dialog.accept());await page.getByRole('button',{name:'Start another registration',exact:true}).click();await submit('Second browser participant');
   const second=await page.getByLabel('Registration number',{exact:true}).inputValue();assert.notEqual(second,firstNumber);

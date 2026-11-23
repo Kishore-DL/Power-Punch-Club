@@ -180,7 +180,6 @@ class Layout {
     if(this.model.tracking)this.details('Private tracking details',[
       {label:'Registration number',value:this.model.tracking.number},
       {label:'Private tracking code',value:this.model.tracking.code,emphasis:true},
-      {label:'How to track',value:'Open '+this.model.tracking.url+' and enter BOTH the registration number and the six-character private tracking code.\nKeep the code private: it grants access to this registration.'},
     ],true);
     if(this.model.note?.trim())this.table('Notes',[WIDTH],[[{text:this.model.note}]]);
     const pages=this.doc.getPages();
