@@ -1,5 +1,6 @@
 import type {ClubContent,ClubEntry,LinkProps} from '../lib/club-types';
 import type {ComponentType,ReactNode} from 'react';
+import {preload} from 'react-dom';
 import AssetImage from './asset-image';
 import ReadableCopy from './readable-copy';
 import { defaultClubLogo } from '../lib/defaults';
@@ -15,6 +16,12 @@ export default function ClubHome({ header, content, Link, program, formatFee, fo
     ? '/hero-purple-background.webp?v=3'
     : branding.heroBackdrop;
   const isClubBanner = heroPhoto === '/power-punch-banner.webp';
+  const foreground = isClubBanner ? '/karate-cutout.webp?v=2' : heroPhoto;
+  const foregroundSources = isClubBanner ? '/karate-cutout-mobile.webp?v=2 480w, /karate-cutout.webp?v=2 861w' : undefined;
+  const foregroundSizes = isClubBanner ? '(max-width: 800px) 49vw, 460px' : undefined;
+  // Discover the selected responsive foreground in the initial HTML, not after
+  // the backdrop/logo. Match the picture candidates so only one file is fetched.
+  preload(foreground,{as:'image',imageSrcSet:foregroundSources,imageSizes:foregroundSizes,fetchPriority:'high'});
   const listedEvents = tournaments.filter((event) => event.status !== 'draft');
   const event = listedEvents.find(item=>item.presentationOnly&&item.status==='open') || listedEvents.find((item) => item.status === 'open') || listedEvents[0];
   const eventPath = event ? '/tournaments/' + event.id : '/tournaments';
@@ -46,9 +53,9 @@ export default function ClubHome({ header, content, Link, program, formatFee, fo
             </Link>
           </div>
         </div>
-        <AssetImage className={isClubBanner ? "campaign-art campaign-art-cutout" : "campaign-art"} src={isClubBanner ? '/karate-cutout.webp?v=2' : heroPhoto}
-          srcSet={isClubBanner ? '/karate-cutout-mobile.webp?v=2 480w, /karate-cutout.webp?v=2 861w' : undefined}
-          sizes={isClubBanner ? '(max-width: 800px) 49vw, 861px' : undefined}
+        <AssetImage className={isClubBanner ? "campaign-art campaign-art-cutout" : "campaign-art"} src={foreground}
+          srcSet={foregroundSources} sizes={foregroundSizes}
+          width={isClubBanner ? 861 : undefined} height={isClubBanner ? 1099 : undefined}
           alt="" fetchPriority="high" style={!isClubBanner ? { objectPosition: branding.heroPosition } : undefined} />
       </section>
 

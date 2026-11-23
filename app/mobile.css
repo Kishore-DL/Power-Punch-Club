@@ -193,7 +193,7 @@
   .club-public.rose-glass .tournament-card,
   .club-public.rose-glass .training-grid .program {
     display: grid;
-    align-items: start;
+    align-items: center;
     gap: 12px;
     padding: 14px;
     min-width: 0;
@@ -329,25 +329,13 @@
   }
   .rose-glass .program-facts dt { font-weight: var(--mobile-label-weight); overflow-wrap: anywhere; }
   .rose-glass .program[data-details-open="false"] .program-details { display: none; }
-  .rose-glass .program[data-details-open="false"] {
+  .rose-glass .training-grid .program {
     grid-template-areas: "photo body";
+    align-self: start;
   }
-  .rose-glass .program[data-details-open="false"] .program-body { grid-area: body; }
-  .rose-glass .program[data-details-open="true"] {
-    grid-template-areas:
-      "photo title"
-      "photo meta"
-      "photo toggle"
-      "details details"
-      "actions actions";
-  }
-  .rose-glass .program[data-details-open="true"] .program-body { display: contents; }
+  .rose-glass .program .program-body { grid-area: body; }
   .rose-glass .program-art { grid-area: photo; }
-  .rose-glass .program-body > h3 { grid-area: title; }
-  .rose-glass .program-meta { grid-area: meta; }
-  .rose-glass .program-details-toggle { grid-area: toggle; justify-self: start; }
-  .rose-glass .program-actions { grid-area: actions; }
-  .rose-glass .program-details { grid-area: details; min-width: 0; }
+  .rose-glass .program-details { min-width: 0; }
   .rose-glass .program-actions {
     display: flex;
     flex-wrap: wrap;
@@ -396,7 +384,7 @@
   .rose-glass :is(.coach, .result-card) {
     display: grid;
     grid-template-columns: clamp(72px, 30%, 104px) minmax(0, 1fr);
-    align-items: start;
+    align-items: center;
     gap: 12px;
     padding: 14px;
   }
