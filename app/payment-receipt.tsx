@@ -32,7 +32,7 @@ export default function PaymentReceipt({ receipt, logo, onClose, confirmation = 
           }).format(new Date(receipt.confirmedAt))} IST</dd>
         </>}
         <dt>{confirmation ? "Tournament" : "Payment for"}</dt><dd>{receipt.title}</dd>
-        <dt>{confirmation ? "Registered by" : "Paid by"}</dt><dd>{receipt.name}</dd>
+        {receipt.name&&<><dt>{confirmation ? "Registered by" : "Paid by"}</dt><dd>{receipt.name}</dd></>}
         {confirmation ? <><dt>Payment</dt><dd>No payment required</dd></> : <><dt>Amount paid</dt><dd><strong>{money.format(receipt.amount / 100)}</strong></dd></>}
         {receipt.fields.map((field, index) => (
           <div className="receipt-field" key={index}><dt>{field.label}</dt><dd>{field.value}</dd></div>

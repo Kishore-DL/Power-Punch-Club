@@ -1,10 +1,11 @@
+import {formContacts,formContactConfigurationError} from '../../../lib/form-contacts.mjs';
 import type {RegistrationInput,VerificationInput,ProviderPayment,ContentUpdate} from '../../../lib/api-types';
 import type {Registration} from '../../../lib/mongodb';
 import type {RegistrationData} from '../../../lib/club-types';
 import {MongoServerError} from 'mongodb';
-import {localMockTarget,mockTournamentId,publishedPresentation} from '../../../lib/local-mock-content.mjs';
+import {localMockTarget,publishedPresentation} from '../../../lib/local-mock-content.mjs';
 import {upiQrDownload,adminPaymentProof} from '../../../lib/payment-images';
-import { normaliseRegistrationEmail, validRegistrationEmail, registrationContactError, normaliseIndianMobile, indianMobileInternational } from '../../../lib/registration-contact.mjs';
+import { normaliseRegistrationEmail, validRegistrationEmail, normaliseIndianMobile, indianMobileInternational } from '../../../lib/registration-contact.mjs';
 import { persistRegistration, ensureTracking, openTrackingCode, normaliseNumber, normaliseCode, trackingDigest, trackingLimits, TrackingLimitError, trackingSession, authorisedRegistration, trackingSessionId } from '../../../lib/registration-identity.mjs';
 import { registrationDocument } from '../../../lib/registration-document';
 import { validateManualProof, publicPaymentState, reviewManualPayment } from '../../../lib/manual-payment';
@@ -87,7 +88,14 @@ async function handle(req:Request){
   return new Response(Buffer.from(bytes),{headers:{'Content-Type':'application/pdf','Content-Disposition':'attachment; filename="'+filename+(receipt?'-receipt':'-registration')+'.pdf"','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
  }
  if(p==='register'&&req.method==='POST'){
-  await rateLimit(req,'register');const b=await requestObject<RegistrationInput>(req);if(typeof b.name!=='string'||(typeof b.email!=='string'&&!(b.email===undefined&&localMockTarget(b.target)))||typeof b.phone!=='string'||(b.target!==undefined&&typeof b.target!=='string'))return fail('Enter valid registration details');if(b.answers!==undefined&&(!b.answers||typeof b.answers!=='object'||Array.isArray(b.answers)))return fail('Invalid form answers');if(b.website)return fail('Unable to submit');b.email=normaliseRegistrationEmail(b.email);b.name=b.name.trim();b.phone=b.phone.trim();const previewContent=b.target===mockTournamentId?await getContent():undefined;const previewEvent=previewContent?.tournaments.find((item:{id:string;previewEmailOptional?:boolean})=>item.id===b.target);const contactError=registrationContactError(b,{emailOptional:(localMockTarget(b.target)||publishedPresentation(previewEvent))&&previewEvent?.previewEmailOptional===true});if(contactError)return fail(contactError);b.phone=normaliseIndianMobile(b.phone);if(b.consent!==true)return fail('Please accept the privacy policy');if(!['trial','enquiry','tournament','team'].includes(b.kind))return fail('Invalid registration type');const c=previewContent||await getContent();
+  await rateLimit(req,'register');const b=await requestObject<RegistrationInput>(req);
+  if(b.target!==undefined&&typeof b.target!=='string')return fail('Enter valid registration details');
+  if(b.answers!==undefined&&(!b.answers||typeof b.answers!=='object'||Array.isArray(b.answers)))return fail('Invalid form answers');
+  if(b.website)return fail('Unable to submit');if(b.consent!==true)return fail('Please accept the privacy policy');
+  if(!['trial','enquiry','tournament','team'].includes(b.kind))return fail('Invalid registration type');
+  const c=await getContent(),contactEvent=['tournament','team'].includes(b.kind)?c.tournaments.find(item=>item.id===b.target):undefined;
+  const formId=contactEvent?.formId||(b.kind==='trial'?c.branding.trialFormId:b.kind==='enquiry'?c.branding.enquiryFormId:undefined);
+  const formFields=c.forms.find(form=>form.id===formId)?.fields||[];
   if(clientPreview())return json({previewOnly:true,amount:0});
   const isTournament=['tournament','team'].includes(b.kind);
   let amount=0,capacity=1000000;const target=b.target||'';
@@ -107,6 +115,12 @@ async function handle(req:Request){
   };
   const existing=await registrations(db).findOne({_id:b.id});
   if(existing){if(existing.token!==token)return fail('Submission already exists',409);return reply(existing,true);}
+  const legacy=['name','email','phone'].some(key=>Object.hasOwn(b,key));
+  if(!formFields.length&&!legacy)return fail('This registration form has not been configured. Please contact the club.');
+  let contact:{name:string;email:string;phone:string};
+  try{contact=formContacts(formFields,b.answers||{},b,{emailOptional:(localMockTarget(b.target)||publishedPresentation(contactEvent))&&contactEvent?.previewEmailOptional===true});}
+  catch(error){return fail(error instanceof Error?error.message:'Check the configured contact questions.');}
+
   if(isTournament){const event=c.tournaments.find((x)=>x.id===target);if(!event||event.status!=='open')return fail('This tournament is not open for registration');if(event.deadline&&new Date(event.deadline+'T23:59:59+05:30').getTime()<Date.now())return fail('Registration has closed');const choices=registrationChoices(event);
     const choice=b.registrationChoice??(choices.length===1?choices[0]:undefined);
     if(!choice||!choices.includes(choice))return fail('Choose an available registration option.');
@@ -119,10 +133,9 @@ async function handle(req:Request){
   if(b.expectedAmount!==undefined&&b.expectedAmount!==amount)return fail('The entry fee changed. Refresh the page and check the amount before submitting.',409);
   if(amount<0||amount>100000000||!Number.isSafeInteger(amount))return fail('Invalid fee configuration');
   const receiptEvent=['tournament','team'].includes(b.kind)?c.tournaments.find((item)=>item.id===target):undefined;
-  const formId=receiptEvent?.formId||(b.kind==='trial'?c.branding.trialFormId:b.kind==='enquiry'?c.branding.enquiryFormId:undefined);
-  const formFields=c.forms.find((form)=>form.id===formId)?.fields||[];
   const answers=Object.fromEntries(formFields.flatMap((f)=>Object.hasOwn(b.answers||{},f.id)?[[f.id,b.answers![f.id]]]:[]));
   for(const f of formFields){
+    if(f.type==='email'&&typeof answers[f.id]==='string')answers[f.id]=normaliseRegistrationEmail(answers[f.id]);
     const val=answers[f.id];
     if(val===undefined||val==='')continue;
     if(typeof val!=='string'&&typeof val!=='number')return fail('Enter a valid answer for '+f.label);
@@ -139,7 +152,7 @@ async function handle(req:Request){
        (f.type==='photo'&&!object.httpMetadata?.contentType?.startsWith('image/')))
       return fail('Please upload a valid file for '+f.label);
   }
-  const receiptFields=Object.fromEntries(formFields.map((field)=>[field.id,{label:field.label,type:field.type,options:field.options,showOnReceipt:field.showOnReceipt,staffDownload:field.staffDownload}]));
+  const receiptFields=Object.fromEntries(formFields.map((field)=>[field.id,{label:field.label,type:field.type,options:field.options,showOnReceipt:field.showOnReceipt,staffDownload:field.staffDownload,contactRole:field.contactRole}]));
   const detail:RegistrationData={answers,team:b.team||[],message:String(b.message||'').slice(0,5000),consent:true,
     paymentMethod,
     ...(receiptEvent?.presentationOnly===true?{presentationOnly:true}:{}),
@@ -151,7 +164,7 @@ async function handle(req:Request){
   let inserted=false;let row:Registration|undefined;
   try{
     const result=await persistRegistration(db,{
-      _id:b.id,id:b.id,token,kind:b.kind,target,name:b.name.trim(),email:b.email.toLowerCase(),phone:b.phone,
+      _id:b.id,id:b.id,token,kind:b.kind,target,name:contact.name,email:contact.email,phone:contact.phone,
       data:detail,status:'new',notes:'',amount,payment_status:paymentMethod==='manual'?'manual_pending':amount?'unpaid':'not_required',created:new Date().toISOString(),
     },receiptEvent?.registrationPrefix??c.branding.registrationPrefix,receiptEvent?.registrationSuffix??c.branding.registrationSuffix,
     (candidate:Registration)=>reserveRegistration(db,candidate,isTournament?(b.kind==='team'?b.team!.length:1):0,capacity));
@@ -297,7 +310,7 @@ async function handle(req:Request){
   await log(session!.account.username,`Manual payment ${b.action}: ${row.id}`);
   return json({saved:true,record:visibleRegistration(updated)});
  }
- if(p==='content'&&req.method==='PUT'){const b=await requestObject<ContentUpdate>(req);const contentValue=b.value;if(!contentKeys.includes(b.key))return fail('Unknown content section');if(JSON.stringify(contentValue).length>200000)return fail('Content too large');if(['branding','pages'].includes(b.key)){if(!contentValue||Array.isArray(contentValue)||typeof contentValue!=='object')return fail('Invalid content');for(const [k,v] of Object.entries(contentValue)){if(typeof v!=='string')return fail('Content must be text');if(['logo','hero','heroBackdrop','image','instagram','facebook','map'].includes(k)&&v&&!/^https:\/\//.test(v as string)&&!/^\/(?!\/)/.test(v as string))return fail('Use an HTTPS URL or uploaded image');}if(b.key==='branding'&&['registrationPrefix','registrationSuffix'].some(key=>contentValue[key]!==undefined&&(contentValue[key].length>20||/[\r\n]/.test(contentValue[key]))))return fail('Registration prefix and suffix must be at most 20 characters');if(b.key==='branding'&&contentValue.heroBackdropMode!==undefined&&!['photo','colour'].includes(contentValue.heroBackdropMode))return fail('Choose a photo or solid banner colour');if(b.key==='branding'&&!/^#[a-fA-F0-9]{6}$/.test(contentValue.accent||''))return fail('Use a valid hex brand colour')}else{if(!Array.isArray(contentValue)||contentValue.length>500)return fail('Invalid content list');const ids=new Set();for(const item of contentValue){if(!item||typeof item!=='object'||typeof item.id!=='string'||!item.id||ids.has(item.id))return fail('Every record needs a unique ID');ids.add(item.id);if(b.key==='tournaments'){
+ if(p==='content'&&req.method==='PUT'){const b=await requestObject<ContentUpdate>(req);const contentValue=b.value;if(!contentKeys.includes(b.key))return fail('Unknown content section');if(JSON.stringify(contentValue).length>200000)return fail('Content too large');if(['branding','pages'].includes(b.key)){if(!contentValue||Array.isArray(contentValue)||typeof contentValue!=='object')return fail('Invalid content');for(const [k,v] of Object.entries(contentValue)){if(typeof v!=='string')return fail('Content must be text');if(['logo','hero','heroBackdrop','image','instagram','facebook','map'].includes(k)&&v&&!/^https:\/\//.test(v as string)&&!/^\/(?!\/)/.test(v as string))return fail('Use an HTTPS URL or uploaded image');}if(b.key==='branding'&&['registrationPrefix','registrationSuffix'].some(key=>contentValue[key]!==undefined&&(contentValue[key].length>20||/[\r\n]/.test(contentValue[key]))))return fail('Registration prefix and suffix must be at most 20 characters');if(b.key==='branding'&&contentValue.heroBackdropMode!==undefined&&!['photo','colour'].includes(contentValue.heroBackdropMode))return fail('Choose a photo or solid banner colour');if(b.key==='branding'&&!/^#[a-fA-F0-9]{6}$/.test(contentValue.accent||''))return fail('Use a valid hex brand colour')}else{if(!Array.isArray(contentValue)||contentValue.length>500)return fail('Invalid content list');const ids=new Set();for(const item of contentValue){if(!item||typeof item!=='object'||typeof item.id!=='string'||!item.id||ids.has(item.id))return fail('Every record needs a unique ID');ids.add(item.id);if(b.key==='forms'){if(item.fields!==undefined&&!Array.isArray(item.fields))return fail('Use a list of form questions.');const issue=formContactConfigurationError(item.fields||[]);if(issue)return fail(issue);}if(b.key==='tournaments'){
   for(const [key,limit] of [['registrationPrefix',20],['registrationSuffix',20],['receiptHeading',100],['confirmationHeading',100],['receiptNote',1000]] as const)
     if(item[key]!==undefined&&(typeof item[key]!=='string'||item[key].length>limit))return fail('Invalid '+key);
   if(item.manualPaymentEnabled!==undefined&&typeof item.manualPaymentEnabled!=='boolean')return fail('Invalid UPI QR setting');

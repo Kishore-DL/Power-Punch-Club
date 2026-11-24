@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {configureManualContacts} from './fixtures/manual-contact-fields.mjs';
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {parseEnv} from 'node:util';
 import {createHash,randomUUID} from 'node:crypto';
@@ -13,6 +14,7 @@ const env=parseEnv(await readFile(process.env.PPC_CONTENT_PREVIEW_ENV||'.env.con
 const origin=process.env.PPC_TEST_URL||'http://localhost:3020',client=new MongoClient(env.MONGODB_URI),db=client.db(env.MONGODB_DATABASE),browser=await chromium.launch({headless:true}),out='outputs/local-karate-flow';await mkdir(out,{recursive:true});
 const hash=b=>createHash('sha256').update(b).digest('hex');
 async function call(endpoint,body,cookie,method=body?'POST':'GET'){const r=await fetch(origin+'/api/'+endpoint,{method,headers:{...(body instanceof FormData?{}:{'Content-Type':'application/json'}),...(cookie?{Cookie:cookie}:{})},...(body!==undefined?{body:body instanceof FormData?body:JSON.stringify(body)}:{})});return {status:r.status,data:await r.json(),cookie:r.headers.getSetCookie().find(v=>v.includes('_session_v2='))?.split(';')[0]};}
+const restoreManualContacts=await configureManualContacts(db,{formId:'local-karate-championship-form-v1',emailOptional:true});
 const content=(await call('content')).data,galleryBefore=JSON.stringify(content.gallery),formsBefore=JSON.stringify(content.forms),event=content.tournaments.find(e=>e.id===mockTournamentId),classes=content.training.filter(p=>p.localOnlyPreview||p.presentationOnly);
 assert.equal(classes.length,4);assert.equal(event.fee,500);assert.equal(event.registrationMode,'manual');assert.equal(event.previewEmailOptional,true);assert.equal((Date.parse(event.date)-Date.parse(event.setupDate))/86400000,45);assert.equal((Date.parse(event.date)-Date.parse(event.deadline))/86400000,7);
 const unwanted=/\b(?:demo|mock|sample|fictional|preview|illustrative|do not pay|test tournament|test class)\b/i;
@@ -49,4 +51,4 @@ try{
   await page.goto(origin+'/training');await page.locator('.program').first().getByRole('button',{name:/Book a trial class|Book trial/}).click();await expect(page.getByRole('combobox',{name:'Preferred program',exact:true})).toHaveValue(classes[0].id);
   assert.equal((await call('content')).data.gallery.length,content.gallery.length);assert.equal(JSON.stringify((await call('content')).data.gallery),galleryBefore);assert.equal(JSON.stringify((await call('content')).data.forms),formsBefore);assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.equal(await db.collection('outbox').countDocuments({status:{$in:['sent','accepted','delivered']}}),0);
   console.log('Local karate flow passed: 4 classes + tournament at 360/390/1440, decoded non-payable QR/download, optional email, portrait original proof hash/dimensions, pending acknowledgement/receipt gating, Admin preview/reject, tracking resubmission, Admin verify, verified receipt, invalid email rejection, Admin class/tournament edit-save-refresh, trial action, unchanged gallery/forms and no live provider requests.');
-}finally{await browser.close();await client.close()}
+}finally{await browser.close();await restoreManualContacts();await client.close()}

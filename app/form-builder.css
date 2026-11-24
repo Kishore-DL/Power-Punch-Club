@@ -1,0 +1,2 @@
+.form-builder .form-contact-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+@media(max-width:767px){.form-builder .form-contact-actions>.btn{flex:1 1 150px;min-height:44px}.form-builder .builder-row :is(input:not([type=checkbox]),select){font-size:16px}.form-builder .builder-row>label:not(.check-label){flex-basis:100%}}

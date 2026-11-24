@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import {MongoClient} from 'mongodb';
+import {configureManualContacts} from './fixtures/manual-contact-fields.mjs';
 import { chromium, expect } from '@playwright/test';
 import { readFile, mkdir } from 'node:fs/promises';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
@@ -7,6 +9,7 @@ import { renderPdfPage } from './pdf-rendering.mjs';
 const origin=process.env.PPC_TEST_URL||'http://localhost:3010';
 if(!['localhost','127.0.0.1'].includes(new URL(origin).hostname)||!process.env.MONGODB_DATABASE?.startsWith('ppc_test_'))throw Error('Disposable local test configuration required.');
 await mkdir('outputs/registration-tests',{recursive:true});
+const mongo=new MongoClient(process.env.MONGODB_URI),restore=await configureManualContacts(mongo.db(process.env.MONGODB_DATABASE),{eventId:'browser-registration'});
 const browser=await chromium.launch({headless:true});
 try{
   const context=await browser.newContext({viewport:{width:1440,height:1000},acceptDownloads:true});
@@ -49,4 +52,4 @@ try{
   await mobile.getByRole('button',{name:'Track another registration',exact:true}).click();await mobile.getByLabel('Registration number',{exact:true}).fill(number);await mobile.getByLabel('Private tracking code',{exact:true}).fill('X1X1X1');await mobile.getByRole('button',{name:'Track registration',exact:true}).click();await expect(mobile.locator('.track-registration [role=alert]')).toContainText('could not be verified');
   assert.deepEqual(errors,[]);
   console.log('Browser regression passed: real PDF download/text recovery in a fresh browser, desktop and 320/390px mobile layouts, copy API/fallback, feedback, two registrations with distinct submission credentials, saved-device recovery and wrong-code failure.');
-}finally{await browser.close();}
+}finally{await browser.close();await restore();await mongo.close();}

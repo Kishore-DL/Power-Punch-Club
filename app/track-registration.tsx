@@ -24,7 +24,7 @@ export default function TrackRegistration(){
       </form>
       {previous.length>0&&<div className="same-browser"><h2>Registrations saved on this device</h2>{previous.map(item=><button className="btn pale" type="button" disabled={busy} key={item.id} onClick={()=>work(()=>load({id:item.id,token:item.token}))}>{item.registrationNumber||item.id}</button>)}</div>}
     </>:<article className="tracking-result">
-      <h2>{record.name}</h2><CopyValue label="Registration number" value={record.registrationNumber}/><CopyValue label="Tracking code" value={record.trackingCode}/>
+      <h2>{record.name||'Registration details'}</h2><CopyValue label="Registration number" value={record.registrationNumber}/><CopyValue label="Tracking code" value={record.trackingCode}/>
       <p>Keep both values private for recovery on another device.</p>
       <dl><dt>Tournament</dt><dd>{record.tournament}</dd><dt>Registered</dt><dd>{new Intl.DateTimeFormat('en-IN',{dateStyle:'medium',timeStyle:'short',timeZone:'Asia/Kolkata'}).format(new Date(record.created))} IST</dd>
         <dt>Registration status</dt><dd>{record.status}</dd><dt>Payment status</dt><dd>{record.paymentStatus==='manual_pending'?'Awaiting payment verification':record.paymentStatus==='manual_rejected'?'Payment proof needs correction':record.paymentStatus==='not_required'?'No payment required':record.paymentStatus}</dd>

@@ -75,9 +75,9 @@ export default function RegistrationPortal({ logo }: { logo?: string }) {
       {loading && <p role="status">Loading registrations…</p>}
       {!loading && !error && rows.length===0 && <p>No tournament registrations available.</p>}
       {filtered.slice(0,pageSize).map(row=><article key={row.id} className="portal-record">
-        <h2>{row.name}</h2><p>{row.tournament} · {row.registrationNumber}</p>
+        <h2>{row.name||'Registration details'}</h2><p>{row.tournament} · {row.registrationNumber}</p>
         <p>{row.status} · {row.payment_status==='not_required' ? 'No payment required' : row.payment_status}</p>
-        {<p>{row.email} · {row.phone}</p>}
+        {(row.email||row.phone)&&<p>{[row.email,row.phone].filter(Boolean).join(' | ')}</p>}
         <dl>{row.answers.map((answer,i)=><div key={i}><dt>{answer.label}</dt><dd>{answer.value}</dd></div>)}</dl>
         {row.team.length>0&&<ul>{row.team.map((member,i)=><li key={i}>{member.name} · {member.age} · {member.belt}</li>)}</ul>}
         {row.uploads.map(upload=><p key={upload.field}><a href={'/api/staff/download?'+new URLSearchParams({id:row.id,field:upload.field})}>Download {upload.label}</a></p>)}

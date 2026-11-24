@@ -40,7 +40,7 @@ const names=['Arun','Bala','Charan','Divya','Ezhil','Farhan','Gokul','Hari','Ini
 const ids=names.map(name=>'filter-practice-'+name.toLowerCase()+'-2026');
 if(await db.collection('requests').countDocuments({_id:{$nin:ids}}))throw Error('Unexpected records in practice database; refusing to hide/delete them.');
 await setupIdentityIndexes(db);
-const fields=[['student-name','Student name','text',''],['city','City','text','Vellore,Chennai,Salem,Kanchipuram'],['master','Master name','text','Kumar,Ravi,Suresh,Priya'],['dojo','Dojo','text','Power Punch Dojo,Victory Dojo'],['belt','Belt','select','Black,Brown'],['category','Category','select','Under 14,Under 10']].map(([id,label,type,options])=>({id:'practice-'+id,label,type,options,required:true,showOnReceipt:true}));
+const fields=[['student-name','Student name','text',''],['city','City','text','Vellore,Chennai,Salem,Kanchipuram'],['master','Master name','text','Kumar,Ravi,Suresh,Priya'],['dojo','Dojo','text','Power Punch Dojo,Victory Dojo'],['belt','Belt','select','Black,Brown'],['category','Category','select','Under 14,Under 10']].map(([id,label,type,options])=>({id:'practice-'+id,label,type,options,required:true,showOnReceipt:true,...(id==='student-name'?{contactRole:'name'}:{})}));
 const forms=[{id:formId,title:'City and belt registration',fields},
  {id:'practice-junior-form',title:'Junior registration',fields:[...fields.filter(field=>!['practice-belt','practice-category'].includes(field.id)),{id:'practice-age',label:'Age',type:'number',required:true,showOnReceipt:true}]},
  {id:'practice-open-form',title:'Open registration',fields:fields.filter(field=>!['practice-city','practice-dojo'].includes(field.id))}];

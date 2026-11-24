@@ -4,7 +4,7 @@ const file=process.argv[2];if(!file||file.startsWith('--'))throw Error('Usage: n
 process.loadEnvFile(file);
 const uri=new URL(process.env.MONGODB_URI||'invalid:'),database=process.env.MONGODB_DATABASE||'';
 if(uri.protocol!=='mongodb:'||!['127.0.0.1','localhost'].includes(uri.hostname)||!/^ppc_(test|preview)_/.test(database))throw Error('Use a loopback MongoDB replica set and an isolated ppc_test_ or ppc_preview_ database. Production/shared destinations are rejected.');
-for(const key of ['BREVO_API_KEY','RAZORPAY_KEY_ID','RAZORPAY_KEY_SECRET','RESEND_API_KEY','EMAIL_FROM_ADDRESS','EMAIL_FROM_NAME','EMAIL_FROM','REMOVE_BG_API_KEY'])process.env[key]='';
+for(const key of ['ADMIN_NOTIFICATION_EMAIL','BREVO_API_KEY','RAZORPAY_KEY_ID','RAZORPAY_KEY_SECRET','RAZORPAY_WEBHOOK_SECRET','RESEND_API_KEY','EMAIL_FROM_ADDRESS','EMAIL_FROM_NAME','EMAIL_FROM','REMOVE_BG_API_KEY'])process.env[key]='';
 const args=process.argv.slice(3),dev=args.includes('--dev'),port=Number(args.find(a=>a.startsWith('--port='))?.slice(7)||3042);
 if(!Number.isInteger(port)||port<1024||port>65535||args.some(a=>!['--dev','--build'].includes(a)&&!a.startsWith('--port=')))throw Error('Use a valid preview port.');
 process.env.PPC_BUILD_DIR=dev?'.next-content-preview':'.next-registration-tests';process.env.PPC_PUBLIC_ORIGIN='http://localhost:'+port;process.env.PPC_TEST_URL=process.env.PPC_PUBLIC_ORIGIN;process.env.PPC_CLIENT_PREVIEW='false';process.env.PPC_LOCAL_MOCK_CONTENT='false';

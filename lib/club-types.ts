@@ -1,6 +1,6 @@
 import type {CSSProperties,ReactNode} from 'react';
 export type AnswerValue=string|number|boolean|null;
-export type FormField={id:string;label:string;type:string;required?:boolean;options?:string;showOnReceipt?:boolean;staffDownload?:boolean};
+export type FormField={id:string;label:string;type:string;required?:boolean;options?:string;showOnReceipt?:boolean;staffDownload?:boolean;contactRole?:'name'|'email'|'phone'};
 export type ClubEntry={id:string;title:string;name?:string;subtitle?:string;description?:string;image?:string;date?:string;endDate?:string;text?:string;status?:string;rank?:string;qualification?:string;experience?:string;achievements?:string;student?:string;medal?:string;event?:string;ages?:string;belt?:string;schedule?:string;venue?:string;fee?:number;feePeriod?:string;formId?:string;deadline?:string;registrationMode?:string;manualPaymentEnabled?:boolean;presentationOnly?:boolean;localOnlyPreview?:boolean;manualQrImage?:string;manualPayee?:string;manualUpiId?:string;manualInstructions?:string;receiptHeading?:string;receiptNote?:string;confirmationHeading?:string;registrationPrefix?:string;registrationSuffix?:string;previewEmailOptional?:boolean;previewQrNonPayable?:boolean;[key:string]:unknown};
 export type GalleryEntry=ClubEntry&{url:string;type:string;featured?:boolean;album?:string;alt?:string;width?:number;height?:number};
 export type ClubForm={id:string;title:string;fields:FormField[]};

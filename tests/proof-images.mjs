@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {manualContactFields} from './fixtures/manual-contact-fields.mjs';
 import {createHash,randomUUID} from 'node:crypto';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {MongoClient} from 'mongodb';
@@ -34,7 +35,7 @@ try{
   owner=await api('auth/login',{role:'admin',username:process.env.PPC_BOOTSTRAP_ADMIN_ID,password:process.env.PPC_BOOTSTRAP_ADMIN_PASSWORD});assert.equal(owner.status,200);original=(await api('content')).data;
   const staffDetails={role:'staff',username:'proof-ratio-staff',password:'fictional proof ratio staff password'};await api('auth/accounts',staffDetails,owner.cookie,'DELETE');assert.equal((await api('auth/accounts',staffDetails,owner.cookie)).status,200);const staff=await api('auth/login',staffDetails);
   const qrForm=new FormData();qrForm.set('file',new Blob([await readFile('public/power-punch-logo.webp')],{type:'image/webp'}),'fixture.webp');qrForm.set('scope','public');const qr=await api('upload',qrForm,owner.cookie);assert.equal(qr.status,200);
-  const form={id:'proof-name-form-'+randomUUID(),title:'Proof registration fields',fields:[{id:'proof-name',label:'Proof fixture name',type:'text',required:false}]};assert.equal((await api('content',{key:'forms',value:[...original.forms,form]},owner.cookie,'PUT')).status,200);
+  const form={id:'proof-name-form-'+randomUUID(),title:'Proof registration fields',fields:[...manualContactFields(),{id:'proof-name',label:'Proof fixture name',type:'text',required:false}]};assert.equal((await api('content',{key:'forms',value:[...original.forms,form]},owner.cookie,'PUT')).status,200);
   const event={formId:form.id,id:'proof-image-shapes-'+randomUUID().slice(0,8),title:'Original proof image tests',fee:500,capacity:100,status:'open',deadline:'2099-12-31',registrationMode:'manual',manualQrImage:qr.data.url};assert.equal((await api('content',{key:'tournaments',value:[...original.tournaments,event]},owner.cookie,'PUT')).status,200);
   const participant=await browser.newContext({viewport:{width:360,height:900}}),page=await participant.newPage(),admin=await browser.newContext({viewport:{width:360,height:900},acceptDownloads:true}),adminPage=await admin.newPage();
   await admin.addCookies([{name:owner.cookie.split('=')[0],value:owner.cookie.slice(owner.cookie.indexOf('=')+1),url:origin,secure:true,httpOnly:true,sameSite:'Lax'}]);

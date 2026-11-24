@@ -1,3 +1,4 @@
+import {documentContactVisible} from './form-contacts.mjs';
 import type {Registration} from './mongodb';
 import type {ClubContent,RegistrationData} from './club-types';
 import { registrationSerial } from './tournament-registration';
@@ -11,7 +12,7 @@ export function receiptDetails(row: Omit<Registration,'data'>&{data:Registration
   const event = content.tournaments.find((item) => item.id === row.target);
   const form = content.forms.find((item) => item.id === event?.formId);
   const labels = data.receiptFields || Object.fromEntries(
-    (form?.fields || []).map((field) => [field.id, { label: field.label, type: field.type, showOnReceipt: field.showOnReceipt }]),
+    (form?.fields || []).map((field) => [field.id, { label: field.label, type: field.type, showOnReceipt: field.showOnReceipt,contactRole:field.contactRole }]),
   );
   const definitionKeys=Object.keys(labels);
   const storedOrder: string[]=Array.isArray(data.receiptFieldOrder)?data.receiptFieldOrder.filter((key:unknown):key is string=>typeof key==='string'&&Object.hasOwn(labels,key)):[];
@@ -21,6 +22,7 @@ export function receiptDetails(row: Omit<Registration,'data'>&{data:Registration
     if (/aadha?ar|aadhar/i.test(key+' '+(labels[key]?.label||''))) return [];
     if (/^(?:token|registration[_-]?token|tracking[_-]?code|admin[_-]?notes|private[_-]?notes|password|secret)$/i.test(key)) return [];
     if (data.receiptFields && !Object.hasOwn(labels, key)) return [];
+    if(labels[key]?.contactRole&&!documentContactVisible(data,labels[key].contactRole))return [];
     if (labels[key]?.showOnReceipt === false || labels[key]?.type === 'masked_aadhaar' || (labels[key]?.type === 'photo'&&labels[key]?.showOnReceipt!==true)) return [];
     if (value === '' || value == null || !['string', 'number', 'boolean'].includes(typeof value)) return [];
     if(typeof value==='string'&&!value.trim())return [];
@@ -40,7 +42,7 @@ export function receiptDetails(row: Omit<Registration,'data'>&{data:Registration
     title: data.receiptTitle || event?.title ||
       content.training.find((item) => item.id === row.target)?.title ||
       content.fees?.find(item=>item.id===row.target)?.title || 'Club payment',
-    name: row.name,
+    name: documentContactVisible(data,'name')?row.name:'',
     amount: row.amount,
     confirmedAt: data.paymentConfirmedAt || null,
     fields,

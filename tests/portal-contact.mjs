@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import {configureManualContacts} from './fixtures/manual-contact-fields.mjs';
 import {randomUUID,createHmac} from 'node:crypto';
 import {MongoClient} from 'mongodb';
 import {chromium,expect} from '@playwright/test';
@@ -12,6 +13,7 @@ async function api(path,body,cookie,method=body?'POST':'GET'){
   const r=await fetch(origin+'/api/'+path,{method,headers:{'Content-Type':'application/json',...(cookie?{Cookie:cookie}:{})},...(body?{body:JSON.stringify(body)}:{})});
   return {status:r.status,data:await r.json(),cookie:r.headers.getSetCookie().find(v=>v.includes('_session_v2='))?.split(';')[0],headers:r.headers};
 }
+let restoreManualContacts;
 const staff={role:'staff',username:'portal-regression',password:'fictional staff password 2026'};
 const ownerBody={role:'admin',username:process.env.PPC_BOOTSTRAP_ADMIN_ID,password:process.env.PPC_BOOTSTRAP_ADMIN_PASSWORD};
 const entry=extra=>({id:randomUUID(),token:randomUUID(),kind:'enquiry',name:'Phone fixture',email:'phone@example.invalid',phone:'9999999999',consent:true,...extra});
@@ -122,7 +124,7 @@ try{
   await page.getByRole('button',{name:'Sign out',exact:true}).click();await page.getByRole('heading',{name:'Staff Login',exact:true}).waitFor();
   assert.equal((await context.request.get(origin+'/api/staff/registrations')).status(),403);
   assert.equal((await context.request.get(origin+'/api/requests')).status(),200);
-  await page.goto(origin+'/contact');const phone=page.getByRole('textbox',{name:'Phone number',exact:true});
+  restoreManualContacts=await configureManualContacts(db,{kind:'enquiry'});await page.goto(origin+'/contact');const phone=page.getByRole('textbox',{name:'Phone number',exact:true});
   await expect(phone).toHaveAttribute('maxlength','10');await expect(phone).toHaveAttribute('inputmode','numeric');
   for(const raw of ['','0','999999999','9999999999']){await phone.fill(raw);assert.equal(await phone.evaluate(el=>el.checkValidity()),raw.length===10);}
   await phone.fill('');await phone.pressSequentially('abc!@99999999999');assert.equal(await phone.inputValue(),'9999999999');
@@ -143,4 +145,4 @@ try{
   assert.equal(await page.getByRole('textbox',{name:'Parent mobile',exact:true}).evaluate(el=>el.checkValidity()),false);
   assert.deepEqual(errors,[]);await context.close();
   console.log('Portal/contact regression passed: role isolation, revoked/expired/legacy/replayed sessions, fresh entry/refresh/deep links, read-only API, independent accessible password toggles, 320px alignment, ASCII mobile typing/paste/autofill/API and dynamic individual/team phones. No real email sent.');
-}finally{await browser.close();await mongo.close();}
+}finally{await browser.close();if(restoreManualContacts)await restoreManualContacts();await mongo.close();}

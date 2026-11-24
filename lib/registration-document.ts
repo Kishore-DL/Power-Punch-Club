@@ -1,3 +1,4 @@
+import {documentContactVisible} from './form-contacts.mjs';
 import sharp from 'sharp';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
@@ -33,10 +34,11 @@ export async function registrationDocument(row:Registration,content:DocumentCont
   const add=(rows:DocumentRow[],label:string,value:unknown,emphasis=false)=>{if(present(value))rows.push({label,value:String(value),emphasis});};
   const registration:DocumentRow[]=[];
   add(registration,'Registration number',details.registrationNumber);
-  add(registration,'Participant / contact',row.name);
+  add(registration,'Participant / contact',details.name);
   add(registration,'Tournament',details.title);
   add(registration,'Registered at',ist(row.created));
-  add(registration,'Email',row.email);add(registration,'Phone',row.phone);
+  if(documentContactVisible(row.data,'email'))add(registration,'Email',row.email);
+  if(documentContactVisible(row.data,'phone'))add(registration,'Phone',row.phone);
   if(row.status==='rejected')add(registration,'Participant correction reason',row.data.participantRejectionReason||'Please contact the club.');
   const payment:DocumentRow[]=[];
   add(payment,'Payment method',row.data.paymentMethod==='manual'?'Manual UPI QR':row.amount?'Razorpay':'Without payment');
