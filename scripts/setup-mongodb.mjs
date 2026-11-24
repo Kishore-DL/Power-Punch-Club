@@ -15,6 +15,8 @@ try {
   await Promise.all([
     db.collection('requests').createIndexes([
       {key:{created:-1},name:'recent_registrations'},
+      {key:{target:1,created:-1,_id:1},name:'report_event_date'},
+      {key:{created:-1,_id:1},name:'report_date_tiebreaker'},
       {key:{target:1,status:1,kind:1},name:'event_capacity'},
       {key:{order_id:1},name:'payment_order'},
       {key:{'data.manualTransactionKey':1},name:'unique_manual_transaction',unique:true,partialFilterExpression:{'data.manualTransactionKey':{$type:'string'}}},
@@ -22,6 +24,9 @@ try {
     db.collection('auth_sessions').createIndex({expiresAt:1},{expireAfterSeconds:0}),
     db.collection('limits').createIndex({expiresAt:1},{expireAfterSeconds:0}),
     db.collection('audit').createIndex({created:-1}),
+    db.collection('admin_export_jobs').createIndex({owner:1,requestId:1},{unique:true,name:'report_request_idempotency'}),
+    db.collection('admin_export_jobs').createIndex({owner:1,active:1},{unique:true,partialFilterExpression:{active:true},name:'one_active_export_per_admin'}),
+    db.collection('admin_export_jobs').createIndex({expiresAt:1},{name:'report_expiry_cleanup'}),
     db.collection('outbox').createIndex({status:1,created:1}),
   ]);
   const skipped=await skipIneligibleOutbox(db);

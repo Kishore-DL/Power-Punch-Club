@@ -1,0 +1,9 @@
+export type ReportKind='text'|'select'|'number'|'date'|'boolean'|'upload';
+export type ReportField={id:string;label:string;displayLabel:string;kind:ReportKind;source:'system'|'answer'|'member';key:string;options:string[];aliases:string[];exportable:boolean};
+export type ReportFilter={field:string;op:'in'|'equals'|'contains'|'range';values?:string[];value?:string;min?:number;max?:number;from?:string;to?:string};
+export type ReportQuery={target:string;search?:string;view:'registrations'|'participants';filters:ReportFilter[];columns:string[];sort:{field:string;direction:'asc'|'desc'};page:number;pageSize:number};
+export type ReportCatalog={fields:ReportField[];events:{id:string;title:string}[];practice?:boolean};
+export type ReportRow={id:string;memberIndex:number;values:Record<string,string>};
+export type ReportPage={rows:ReportRow[];labels:Record<string,string>;total:number;registrations:number;participants:number;page:number;pageSize:number};
+export type ReportPreset={id:string;name:string;query:ReportQuery};
+export type ExportStatus={id:string;status:'queued'|'running'|'complete'|'failed';format:'xlsx'|'pdf';processed:number;total?:number;error?:string;filename?:string};

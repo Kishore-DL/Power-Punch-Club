@@ -10,6 +10,7 @@ import { registrationDocument } from '../../../lib/registration-document';
 import { validateManualProof, publicPaymentState, reviewManualPayment } from '../../../lib/manual-payment';
 import { currentAccount } from '../../../lib/password-auth';
 import { passwordEndpoint } from '../../../lib/password-endpoints';
+import { reportEndpoint } from '../../../lib/report-endpoints';
 import { contentRecords, registrations, visibleRegistration, reserveRegistration, editRegistration } from '../../../lib/mongodb';
 import { fileStorage } from '../../../lib/file-storage';
 import { portalRegistrations, staffDownload } from '../../../lib/registration-access';
@@ -138,7 +139,7 @@ async function handle(req:Request){
        (f.type==='photo'&&!object.httpMetadata?.contentType?.startsWith('image/')))
       return fail('Please upload a valid file for '+f.label);
   }
-  const receiptFields=Object.fromEntries(formFields.map((field)=>[field.id,{label:field.label,type:field.type,showOnReceipt:field.showOnReceipt,staffDownload:field.staffDownload}]));
+  const receiptFields=Object.fromEntries(formFields.map((field)=>[field.id,{label:field.label,type:field.type,options:field.options,showOnReceipt:field.showOnReceipt,staffDownload:field.staffDownload}]));
   const detail:RegistrationData={answers,team:b.team||[],message:String(b.message||'').slice(0,5000),consent:true,
     paymentMethod,
     ...(receiptEvent?.presentationOnly===true?{presentationOnly:true}:{}),
@@ -273,6 +274,14 @@ async function handle(req:Request){
   if(!e.RAZORPAY_WEBHOOK_SECRET)return fail('Webhook not configured',503);const raw=await req.text();if(!safeEqual(await hmac(e.RAZORPAY_WEBHOOK_SECRET,raw),req.headers.get('x-razorpay-signature')||''))return fail('Invalid signature',403);const event=JSON.parse(raw),pay=event.payload?.payment?.entity;if(event.event==='payment.captured'&&pay){const r=await registrations(db).findOne({order_id:String(pay.order_id||'')});if(r&&r.amount===pay.amount&&pay.currency==='INR')await recordCapturedPayment(db,r.id,pay.id)}return json({received:true})
  }
  if(!admin)return fail('Admin access required',403);
+ if(p==='requests-summary'&&req.method==='GET'){
+  const [result]=await registrations(db).aggregate([{$facet:{
+   rows:[{$sort:{created:-1,_id:1}},{$limit:20}],
+   totals:[{$group:{_id:null,total:{$sum:1},awaiting:{$sum:{$cond:[{$eq:['$status','new']},1,0]}},paidAmount:{$sum:{$cond:[{$eq:['$payment_status','paid']},'$amount',0]}}}}],
+  }}]).toArray();
+  return json({rows:(result?.rows||[]).map(visibleRegistration),total:result?.totals[0]?.total||0,awaiting:result?.totals[0]?.awaiting||0,paidAmount:result?.totals[0]?.paidAmount||0});
+ }
+ if(p.startsWith('admin/reports/'))return reportEndpoint(p.slice('admin/reports/'.length),req,db,await getContent(),session!);
  if(p==='manual-payment-review'&&req.method==='POST'){
   const b=await requestObject(req);
   if(typeof b.id!=='string'||(b.action!=='verify'&&b.action!=='reject')||typeof b.expectedRevision!=='string')return fail('Invalid payment review');

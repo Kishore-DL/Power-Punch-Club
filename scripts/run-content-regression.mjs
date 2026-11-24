@@ -49,6 +49,7 @@ try{
   publishedServer=spawn(process.execPath,['node_modules/next/dist/bin/next','start','-p','3024'],{env:publishedEnv,stdio:'inherit'});
   let publicReady=false;for(let i=0;i<60;i++){try{if((await fetch(target.PPC_PUBLIC_ORIGIN+'/api/status')).ok){publicReady=true;break}}catch{}await new Promise(resolve=>setTimeout(resolve,300))}if(!publicReady)throw Error('Published presentation test server did not start.');
   await run(['tests/presentation-content.mjs']);await run(['tests/local-karate-flow.mjs'],publishedEnv);
+  await run(['tests/mobile-card-alignment.mjs'],{...publishedEnv,PPC_READONLY_SITE_URL:target.PPC_PUBLIC_ORIGIN,PPC_LAYOUT_LABEL:'content-regression'});
   console.log('Scoped publication regression PASSED: dry-run, private backup/journal, 14 selected additions/9 public files, repeat idempotency, genuine event/hero preservation, production-mode public images and full manual registration/receipt flow.');
   console.log('Content release regression PASSED using a newly created disposable database, no live providers, gallery/classes/tournament editing and full manual-proof workflow.');
 }finally{

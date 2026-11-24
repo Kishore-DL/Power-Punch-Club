@@ -9,7 +9,7 @@ import type { Registration } from './mongodb';
 type DocumentContent=Pick<import('./club-types').ClubContent,'branding'|'tournaments'|'forms'|'training'>;
 
 // Read current uploaded/local branding without fetching participant-controlled URLs.
-async function logoBytes(url:string) {
+export async function logoBytes(url:string) {
   if (url?.startsWith('/api/media/public%2F')) {
     const key=decodeURIComponent(url.slice('/api/media/'.length));
     if(!/^public\/[a-f0-9-]{36}$/i.test(key))return null;

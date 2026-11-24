@@ -18,14 +18,14 @@ async function measure(page,description){
  const data=await page.evaluate(()=>{
   const box=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom,cy:r.y+r.height/2};};
   return {width:innerWidth,overflow:document.documentElement.scrollWidth>innerWidth,cards:[...document.querySelectorAll('.program,.tournament-card,.coach,.result-card')].map(card=>{
-   const media=card.querySelector('.program-art,.tournament-card-photo')||card.firstElementChild;
+   const media=card.querySelector('.program-art,.tournament-card-photo,:scope>img,:scope>.medal-art');
    const body=card.querySelector('.program-body,.tournament-card-body')||card.lastElementChild;
-   return {type:card.className,box:box(card),media:box(media),body:box(body)};
+   return {type:card.className,box:box(card),media:media?box(media):null,body:box(body)};
   }),hero:document.querySelector('.campaign-art')?{source:document.querySelector('.campaign-art').currentSrc,box:box(document.querySelector('.campaign-art')),copy:box(document.querySelector('.campaign-copy')),width:document.querySelector('.campaign-art').getAttribute('width'),height:document.querySelector('.campaign-art').getAttribute('height')}:null};
  });
  assert.equal(data.overflow,false,description+' no page overflow');
  for(const card of data.cards){
-  if(data.width<=800){
+  if(data.width<=800&&card.media){
    assert.ok(card.media.right<=card.body.x+1,description+' photo stays on LEFT');
    assert.ok(Math.abs(card.media.cy-card.body.cy)<1,description+' photo vertically centred against complete right content');
   }

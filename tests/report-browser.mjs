@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import {mkdir,readFile} from 'node:fs/promises';
+import {chromium,expect} from '@playwright/test';
+import ExcelJS from 'exceljs';
+import {getDocument} from 'pdfjs-dist/legacy/build/pdf.mjs';
+const origin=process.env.PPC_TEST_URL||'http://localhost:3042';
+if(new URL(origin).hostname!=='localhost'||!/^mongodb:\/\/(127\.0\.0\.1|localhost):/.test(process.env.MONGODB_URI||'')||!process.env.MONGODB_DATABASE?.startsWith('ppc_test_')||process.env.BREVO_API_KEY||process.env.RAZORPAY_KEY_SECRET)throw Error('Use isolated local tests with real providers disabled');
+const out='outputs/report-browser/'+(process.env.PPC_REPORT_MODE||'production');await mkdir(out,{recursive:true});
+const login=await fetch(origin+'/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:'admin',username:process.env.PPC_BOOTSTRAP_ADMIN_ID,password:process.env.PPC_BOOTSTRAP_ADMIN_PASSWORD})});assert.equal(login.status,200);
+const cookie=login.headers.getSetCookie().find(c=>c.startsWith('ppc_admin_session_v2=')).split(';')[0];
+const saved=await(await fetch(origin+'/api/admin/reports/presets',{headers:{Cookie:cookie}})).json();for(const preset of saved.presets||[])if(['Browser report preset','Renamed browser report preset'].includes(preset.name))await fetch(origin+'/api/admin/reports/presets',{method:'DELETE',headers:{Cookie:cookie,'Content-Type':'application/json'},body:JSON.stringify({id:preset.id})});
+const browser=await chromium.launch(),context=await browser.newContext({acceptDownloads:true,viewport:{width:1440,height:1000}}),page=await context.newPage(),errors=[];
+await context.addCookies([{name:cookie.split('=')[0],value:cookie.slice(cookie.indexOf('=')+1),url:origin,secure:true,httpOnly:true,sameSite:'Lax'}]);
+page.on('pageerror',e=>errors.push(e.message));
+async function open(){await page.goto(origin+'/admin');await page.locator('.admin-shell').waitFor();if(await page.getByRole('button',{name:'Menu',exact:true}).isVisible())await page.getByRole('button',{name:'Menu',exact:true}).click();await page.getByRole('button',{name:/Registrations & enquiries/}).click();await page.getByRole('button',{name:'Apply',exact:true}).waitFor();await expect(page.getByLabel('Tournament',{exact:true})).toBeVisible();}
+async function add(id){await page.getByRole('button',{name:'Add Filter',exact:true}).click();const group=page.locator('.report-filter').last();await group.getByLabel('Field',{exact:true}).selectOption(id);return group;}
+async function apply(){await page.getByRole('button',{name:'Apply',exact:true}).click();await expect(page.getByRole('button',{name:'Apply',exact:true})).toBeEnabled();}
+async function rows(count){await expect(page.locator('.report-table-scroll tbody tr')).toHaveCount(count);}
+async function exportFile(format){await page.getByRole('button',{name:format==='xlsx'?'Download Excel':'Download PDF',exact:true}).click();await expect(page.locator('.report-job')).toContainText(format.toUpperCase()+' ready:',{timeout:60000});const download=page.waitForEvent('download');await page.getByRole('button',{name:'Download ready report',exact:true}).click();const file=await download;await file.saveAs(out+'/'+file.suggestedFilename());return readFile(out+'/'+file.suggestedFilename());}
+try{
+ await open();await page.getByLabel('Tournament',{exact:true}).selectOption('report-test-event');await expect(page.getByRole('button',{name:'Apply',exact:true})).toBeEnabled();await page.getByLabel('Rows',{exact:true}).selectOption('registrations');await apply();await rows(6);
+ const dojo=await add('answer:report-dojo');await dojo.getByRole('checkbox',{name:/power punch dojo/i}).check();await apply();await rows(3);
+ await dojo.getByRole('checkbox',{name:'Dojo B',exact:true}).check();await apply();await rows(4);
+ const belt=await add('answer:report-belt');await belt.getByRole('checkbox',{name:'Black',exact:true}).check();await belt.getByRole('checkbox',{name:'Brown',exact:true}).check();await apply();await rows(4);
+ const category=await add('answer:report-category');await category.getByRole('checkbox',{name:'Under 10',exact:true}).check();await category.getByRole('checkbox',{name:'Under 14',exact:true}).check();await apply();await rows(4);
+ await category.getByRole('button',{name:'Remove Under 10 from Category',exact:true}).click();await apply();await rows(1);
+ await page.getByRole('button',{name:'Choose Columns',exact:true}).click();await page.locator('.report-column-choices').getByRole('checkbox',{name:'Additional information',exact:true}).check();await page.getByRole('button',{name:'Move Additional information up',exact:true}).click();await page.getByRole('button',{name:'Move Additional information up',exact:true}).click();await apply();
+ const headers=(await page.locator('.report-table-scroll th').allTextContents()).slice(0,-1);
+ await page.locator('.report-advanced summary').click();page.once('dialog',d=>d.accept('Browser report preset'));await page.getByRole('button',{name:'Save preset',exact:true}).click();await expect(page.getByRole('status').filter({hasText:'Preset saved.'})).toBeVisible();
+ for(const width of [360,390,768,1440]){await page.setViewportSize({width,height:1000});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:out+'/filters-'+width+'.png',fullPage:true});}
+ await page.setViewportSize({width:1440,height:1000});
+ const xlsx=await exportFile('xlsx');assert.equal(xlsx.subarray(0,4).toString('hex'),'504b0304');const book=new ExcelJS.Workbook();await book.xlsx.load(xlsx);assert.deepEqual(book.worksheets[0].getRow(1).values.slice(1),headers);assert.equal(book.worksheets[0].rowCount,2);
+ const pdf=await exportFile('pdf');assert.equal(pdf.subarray(0,5).toString(),'%PDF-');const task=getDocument({data:new Uint8Array(pdf),useSystemFonts:false}),doc=await task.promise;assert.ok(doc.numPages>=2);await task.destroy();
+ // HTML/JSON failures must never be saved under a document extension.
+ let downloads=0;const onDownload=()=>downloads++;page.on('download',onDownload);
+ await page.route('**/api/admin/reports/file?*',route=>route.fulfill({status:200,contentType:'text/html',body:'<html>Sign in</html>'}));await page.getByRole('button',{name:'Download ready report',exact:true}).click();await expect(page.locator('.registration-reports [role=alert]')).toContainText('not available');assert.equal(downloads,0);await page.unroute('**/api/admin/reports/file?*');page.off('download',onDownload);
+ await open();await page.locator('.report-advanced summary').click();await page.getByLabel('Saved presets',{exact:true}).selectOption({label:'Browser report preset'});await page.getByRole('button',{name:'Load',exact:true}).click();await apply();await rows(1);assert.deepEqual((await page.locator('.report-table-scroll th').allTextContents()).slice(0,-1),headers);
+ page.once('dialog',d=>d.accept('Renamed browser report preset'));await page.getByRole('button',{name:'Rename',exact:true}).click();await expect(page.getByLabel('Saved presets',{exact:true})).toContainText('Renamed browser report preset');await page.getByRole('button',{name:'Delete preset',exact:true}).click();await expect(page.getByLabel('Saved presets',{exact:true})).not.toContainText('Renamed browser report preset');
+ await page.getByRole('button',{name:'Clear All',exact:true}).click();await rows(6);
+ await page.getByLabel('Rows',{exact:true}).selectOption('participants');await apply();await rows(7);await expect(page.locator('.report-table-scroll thead')).toContainText('Participant name');
+ const missingDojo=await add('answer:report-dojo');await missingDojo.getByRole('checkbox',{name:'Dojo C',exact:true}).check();const missingBelt=await add('answer:report-belt');await missingBelt.getByRole('checkbox',{name:'Brown',exact:true}).check();await apply();await rows(0);await expect(page.getByText('No registrations match these filters. Remove a value or use Clear All.',{exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Clear All',exact:true}).click();await rows(7);await page.getByPlaceholder('Search current form answers').fill('Participant one');await rows(1);await page.getByRole('button',{name:'REVIEW',exact:true}).click();await expect(page.getByRole('dialog',{name:'Registration review',exact:true})).toBeVisible();await page.getByRole('button',{name:'Close request review',exact:true}).click();
+ await fetch(origin+'/api/auth/logout',{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({role:'admin'})});await page.getByRole('button',{name:'Refresh',exact:true}).click();await expect(page.locator('.registration-reports [role=alert]')).toContainText('Session expired');assert.deepEqual(errors,[]);
+ console.log('Report browser checks passed: OR/AND chips, counts, columns/order, preset persistence/rename/delete, actual XLSX/PDF downloads, rejected HTML response, participant view/form-only empty state, quick search/review, expiry and 360/390/768/1440 layouts.');
+}finally{await browser.close();}
