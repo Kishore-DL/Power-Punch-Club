@@ -1,3 +1,4 @@
+import {b2Variables} from '../lib/b2-storage.mjs';
 import { spawn } from 'node:child_process';
 import { MongoClient } from 'mongodb';
 import { randomUUID } from 'node:crypto';
@@ -8,6 +9,7 @@ process.loadEnvFile(process.argv[2] || '.env.registration-test');
 const uri=new URL(process.env.MONGODB_URI),origin=process.env.PPC_TEST_URL||'http://localhost:3010';
 if(uri.protocol!=='mongodb:'||!['127.0.0.1','localhost'].includes(uri.hostname)||!process.env.MONGODB_DATABASE?.startsWith('ppc_test_')||new URL(origin).hostname!=='localhost')throw Error('Use a local disposable ppc_test_ replica set and localhost test URL.');
 if(process.env.PPC_BUILD_DIR!=='.next-registration-tests')throw Error('Use PPC_BUILD_DIR=.next-registration-tests to keep normal builds separate.');
+for(const key of b2Variables)process.env[key]='';
 process.env.PPC_CLIENT_PREVIEW='false';
 process.env.ADMIN_NOTIFICATION_EMAIL='test-club-admin@example.invalid';
 for(const key of ['RAZORPAY_KEY_ID','RAZORPAY_KEY_SECRET','RESEND_API_KEY','EMAIL_FROM','BREVO_API_KEY','EMAIL_FROM_ADDRESS','EMAIL_FROM_NAME'])process.env[key]='';

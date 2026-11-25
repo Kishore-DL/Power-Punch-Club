@@ -36,6 +36,8 @@ export async function staffDownload(db: Db, registrationId: string, field: strin
   const definition = details.receiptFields?.[field];
   const key = staffUploadKey(details.answers?.[field], definition?.type, definition?.staffDownload);
   if (!key) return null;
+  const head=await fileStorage.head(key);
+  if(head?.provider==='b2'){const type=head.httpMetadata.contentType;if(!['image/png','image/jpeg','image/webp','application/pdf'].includes(type))return null;return fileStorage.delivery(key,'registration-upload.'+(type==='image/jpeg'?'jpg':type.split('/')[1]),false,true);}
   const object = await fileStorage.get(key);
   const type = object?.httpMetadata?.contentType;
   if (!object || !type || !['image/png','image/jpeg','image/webp','application/pdf'].includes(type)) return null;

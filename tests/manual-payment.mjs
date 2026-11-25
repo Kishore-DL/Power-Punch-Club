@@ -24,7 +24,7 @@ try{
   const photo=await readFile(new URL('../public/power-punch-logo.webp',import.meta.url));
   async function upload(token,publicFile=false,recoveryCookie){
     const form=new FormData();form.set('file',new Blob([photo]),'fixture.webp');
-    if(publicFile)form.set('scope','public');else form.set('registrationToken',token);
+    if(publicFile)form.set('scope','public');else{form.set('registrationToken',token);form.set('purpose','payment-proof');}
     return call('upload','POST',form,publicFile?owner.cookie:recoveryCookie);
   }
   const qr=await upload('',true);equal(qr.status,200);

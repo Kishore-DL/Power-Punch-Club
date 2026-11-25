@@ -46,3 +46,6 @@ yarn-error.log*
 # OS metadata
 .DS_Store
 /.next-content-preview/
+
+# Placeholder-only B2 mapping; no real environment files.
+!.env.b2.example

@@ -1,3 +1,4 @@
+import {fenceMutation} from './mutation-lock.mjs';
 import type {RegistrationData} from './club-types';
 import { configureMongoDns } from './mongodb-dns.mjs';
 import { MongoClient, MongoServerError, type Db } from 'mongodb';
@@ -32,12 +33,14 @@ export const visibleRegistration=(row:Registration)=>({...row,_id:undefined,toke
 export const contentRecords=(db:Db)=>db.collection<{_id:string;value:unknown;updated:string}>('content');
 
 export async function reserveRegistration(db:Db,row:Registration,seats:number,capacity:number) {
+  if(await db.collection<{_id:string}>('registration_tombstones').findOne({_id:row.id}))throw new Error('Deleted registration identifiers cannot be reused.');
   if(!seats){
-    try{await registrations(db).insertOne(row);return true}catch(error){if(duplicateKey(error)&&(error as MongoServerError).keyPattern?._id)return false;throw error}
+    try{return await mongoClient().withSession(session=>session.withTransaction(async()=>{await fenceMutation(db,session);if(await db.collection<{_id:string}>('registration_tombstones').findOne({_id:row.id},{session}))throw Error('Deleted registration identifiers cannot be reused.');await registrations(db).insertOne(row,{session});return true;}));}catch(error){if(duplicateKey(error)&&(error as MongoServerError).keyPattern?._id)return false;throw error}
   }
   const locks=await eventLock(db,row.target);
   try {
     return await mongoClient().withSession(session=>session.withTransaction(async()=>{
+      await fenceMutation(db,session);
       // Writing the same event lock serializes competing capacity decisions.
       await locks.updateOne({_id:row.target},{$inc:{revision:1}},{session});
       const requests=registrations(db);
@@ -74,6 +77,7 @@ export async function editRegistration(db:Db,id:string,status:string,notes:strin
   if(!event)return false;
   const locks=await eventLock(db,existing.target);
   return mongoClient().withSession(session=>session.withTransaction(async()=>{
+    await fenceMutation(db,session);
     await locks.updateOne({_id:existing.target},{$inc:{revision:1}},{session});
     const count=existing.kind==='team'?(existing.data.team?.length||0):1;
     if(await usedSeats(db,event.id,session)+count>(Number(event.capacity)||1000000))return false;

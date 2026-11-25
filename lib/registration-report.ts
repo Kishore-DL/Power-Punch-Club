@@ -59,12 +59,14 @@ export function validateReportQuery(input:unknown,catalog:ReportCatalog):ReportQ
 }
 
 export async function reportCatalog(db:Db,content:ClubContent,target=''):Promise<ReportCatalog>{
- void db;
+
  if(typeof target!=='string'||target.length>128)bad('Invalid tournament.');
  const events=content.tournaments.map(event=>({id:event.id,title:event.title}));
+ const historical=await db.collection('requests').aggregate([{$match:{kind:{$in:['tournament','team']}}},{$sort:{created:1}},{$group:{_id:'$target',title:{$first:'$data.receiptTitle'},fields:{$last:'$data.receiptFields'}}}],{allowDiskUse:true,maxTimeMS:30000}).toArray();
+ for(const row of historical)if(typeof row._id==='string'&&!events.some(event=>event.id===row._id))events.push({id:row._id,title:(row.title||row._id)+' (historical)'});
  if(!target)return {fields:[],events};
- const event=content.tournaments.find(item=>item.id===target);if(!event)bad('Tournament not found.');
- const current=content.forms.find(form=>form.id===event!.formId)?.fields||[];
+ const event=content.tournaments.find(item=>item.id===target),history=historical.find(row=>row._id===target);if(!event&&!history)bad('Tournament not found.');
+ const current=event?(content.forms.find(form=>form.id===event.formId)?.fields||[]):Object.entries(history?.fields||{}).map(([id,value])=>({...value as import('./club-types').FormField,id}));
  const fields:ReportField[]=current.filter(field=>!blocked(field.id,field.label,field.type)).map(field=>({
   id:'answer:'+field.id,key:field.id,label:field.label,displayLabel:field.label,kind:kinds(field.type),source:'answer',aliases:[],
   options:String(field.options||'').split(',').map(option=>option.trim()).filter(Boolean),exportable:field.showOnReceipt!==false,

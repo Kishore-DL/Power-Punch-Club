@@ -1,3 +1,4 @@
+import {b2Configuration} from '../lib/b2-storage.mjs';
 import { emailConfiguration } from '../lib/admin-notifications.mjs';
 import { MongoClient } from 'mongodb';
 import '../lib/mongodb-dns.mjs';
@@ -43,6 +44,7 @@ if(env.MONGODB_URI){
   }catch{errors.push('Database checks could not complete. Check network access, credentials and run db:setup.');}
   finally{await client.close();}
 }
+const storage=b2Configuration();if(storage.enabled&&!storage.ready)errors.push(...storage.issues);
 for(const error of errors)console.error(error);
 if(errors.length)process.exitCode=1;
 else console.log('Configuration checks passed. Verify the live QR transfer, receipt, email delivery, backups and hosting load before launch.');

@@ -1,3 +1,6 @@
+import {withMutationLock} from '../../../lib/mutation-lock.mjs';
+import {dataManagement} from '../../../lib/data-management';
+import {b2Configuration,B2Store} from '../../../lib/b2-storage.mjs';
 import {formContacts,formContactConfigurationError} from '../../../lib/form-contacts.mjs';
 import type {RegistrationInput,VerificationInput,ProviderPayment,ContentUpdate} from '../../../lib/api-types';
 import type {Registration} from '../../../lib/mongodb';
@@ -43,11 +46,13 @@ async function handle(req:Request){
  const session=await currentAccount(req,db,e.PPC_SESSION_SECRET);
  if(p.startsWith('auth/'))return passwordEndpoint(p,req,db,e,session);
  const admin=session?.account.role==='admin';
+ if(p.startsWith('owner/data/')){if(req.method==='POST'){if(req.headers.get('origin')!==(e.PPC_PUBLIC_ORIGIN||url.origin))return fail('Valid same-origin request required',403);await rateLimit(req,'owner-data');}return dataManagement(p.slice(11),req,db,session);}
+ if(p==='admin/storage-health'&&req.method==='POST'){if(!admin)return fail('Admin access required',403);const configuration=b2Configuration();if(!configuration.ready)return json({...configuration,issues:configuration.enabled?configuration.issues:['B2 is not enabled. Configure all eight server-only storage variables.']});try{await new B2Store().health();return json({...configuration,connected:true});}catch{return json({...configuration,connected:false,issues:['B2 connection failed. Check endpoint, restricted keys and bucket access.']},503);}}
  if(p==='upi-qr'&&req.method==='GET')return upiQrDownload(db,url.searchParams.get('id')||'',url.searchParams.get('open')==='1');
  if(p==='admin/payment-proof'&&req.method==='GET'){if(!admin)return fail('Admin access required',403);return adminPaymentProof(db,url.searchParams.get('id')||'',url.searchParams.get('revision')||'',url.searchParams.get('download')==='1');}
  const staffSession=await currentAccount(req,db,e.PPC_SESSION_SECRET,'staff');
  const staff=!!staffSession;
- if(req.method==='GET'&&p==='session')return json({admin,staff,passwordMode:true,owner:session?.account.owner===true});
+ if(req.method==='GET'&&p==='session')return json({admin,staff,passwordMode:true,owner:session?.key==='private-auth-owner'&&session.account.owner===true});
  if(p==='staff/registrations'||p==='staff/download'){
    if(req.method!=='GET')return fail('Read-only endpoint',405);
    if(!staff)return fail('Staff access required',403);
@@ -56,15 +61,15 @@ async function handle(req:Request){
    if(!id||!field)return fail('File not found',404);
    return await staffDownload(db,id,field)||fail('File not found',404);
  }
- if(req.method==='GET'&&p==='status'){const email=emailConfiguration(e);return json({payments:!clientPreview()&&!!(e.RAZORPAY_KEY_ID&&e.RAZORPAY_KEY_SECRET),email:email.ready,...(admin?{emailConfiguration:email}:{}),backgroundRemoval:!!e.REMOVEBG_API_KEY});}
- if(p.startsWith('media/')&&req.method==='GET'){const key=decodeURIComponent(p.slice(6));if(!key.startsWith('public/')&&!admin)return fail('Not authorised',403);const obj=await fileStorage.get(key);if(!obj)return fail('File not found',404);return new Response(obj.body,{headers:{'Content-Type':obj.httpMetadata?.contentType||'application/octet-stream','Cache-Control':key.startsWith('public/')?'public, max-age=31536000, immutable':'private, no-store','X-Content-Type-Options':'nosniff','Content-Disposition':key.startsWith('public/')?'inline':'attachment'}})}
+ if(req.method==='GET'&&p==='status'){const email=emailConfiguration(e);return json({payments:!clientPreview()&&!!(e.RAZORPAY_KEY_ID&&e.RAZORPAY_KEY_SECRET),email:email.ready,...(admin?{emailConfiguration:email,storageConfiguration:b2Configuration()}:{}),backgroundRemoval:!!e.REMOVEBG_API_KEY});}
+ if(p.startsWith('media/')&&req.method==='GET'){const key=decodeURIComponent(p.slice(6)),head=await fileStorage.head(key);if(!head)return fail('File not found',404);if(!(key.startsWith('public/')&&head.approvedPublic)&&!admin)return fail('Not authorised',403);const publicMedia=key.startsWith('public/'),extension=({'image/png':'png','image/jpeg':'jpg','image/webp':'webp','application/pdf':'pdf'} as Record<string,string>)[head.httpMetadata.contentType]||'bin';return await fileStorage.delivery(key,publicMedia?undefined:'registration-upload.'+extension,publicMedia,!publicMedia)||fail('File not found',404);}
  if(p==='upload'&&req.method==='POST'){
   await rateLimit(req,'upload');const form=await req.formData(),f=form.get('file') as File,scope=form.get('scope')==='public'?'public':'private';if(scope==='public'&&!admin)return fail('Admin access required',403);if(scope==='private'&&clientPreview())return fail('Uploads are disabled for this presentation',409);if(!f||!f.size||f.size>8*1024*1024)return fail('Choose a file under 8 MB');const bytes=await f.arrayBuffer(),a=new Uint8Array(bytes);let type='';if(a[0]===137&&a[1]===80&&a[2]===78&&a[3]===71)type='image/png';if(a[0]===255&&a[1]===216&&a[2]===255)type='image/jpeg';if(String.fromCharCode(...a.slice(0,4))==='RIFF'&&String.fromCharCode(...a.slice(8,12))==='WEBP')type='image/webp';if(scope==='private'&&String.fromCharCode(...a.slice(0,5))==='%PDF-')type='application/pdf';if(!type)return fail('Use PNG, JPEG or WebP. Participant documents may also be PDF.');let output: ArrayBuffer|Blob=bytes;if(scope==='private'&&form.get('remove')==='true')return fail('Private uploads must preserve the original file. Background removal is available only for public images.');if(form.get('remove')==='true'){if(!admin)return fail('Admin access required',403);if(!e.REMOVEBG_API_KEY)return fail('Automatic background removal needs a remove.bg API key. Upload a transparent PNG instead.',503);const body=new FormData();body.append('image_file',new Blob([bytes],{type}));body.append('size','auto');const result=await fetch('https://api.remove.bg/v1.0/removebg',{method:'POST',headers:{'X-Api-Key':e.REMOVEBG_API_KEY},body,signal:AbortSignal.timeout(30000)});if(!result.ok)return fail('Background removal could not complete. Try a transparent PNG.',502);output=await result.blob();type='image/png'}
   let uploadToken=String(form.get('registrationToken')||'');
   const tracked=trackingSessionId(req);
   if(scope==='private'&&tracked&&!uploadToken){const row=await registrations(db).findOne({_id:tracked});if(row)uploadToken=row.token;}
   if(scope==='private'&&!/^[a-zA-Z0-9-]{30,80}$/.test(uploadToken))return fail('Start a registration before uploading files');
-  const key=scope+'/'+crypto.randomUUID();await fileStorage.put(key,output,{httpMetadata:{contentType:type},...(scope==='private'?{customMetadata:{registrationToken:uploadToken}}:{})});return json({url:'/api/media/'+encodeURIComponent(key)})
+  const key=scope+'/'+crypto.randomUUID();await fileStorage.put(key,output,{httpMetadata:{contentType:type},...(scope==='private'?{customMetadata:{registrationToken:uploadToken,purpose:form.get('purpose')==='payment-proof'?'payment-proof':'registration-document'}}:{})});return json({url:'/api/media/'+encodeURIComponent(key)})
  }
  if(p==='track-registration'&&req.method==='POST'){
   const body=await requestObject(req);
@@ -114,7 +119,7 @@ async function handle(req:Request){
     });
   };
   const existing=await registrations(db).findOne({_id:b.id});
-  if(existing){if(existing.token!==token)return fail('Submission already exists',409);return reply(existing,true);}
+  if(existing){if(existing.token!==token)return fail('Submission already exists',409);await fileStorage.claim(existing);await notifyNewRequest(existing);return reply(existing,true);}
   const legacy=['name','email','phone'].some(key=>Object.hasOwn(b,key));
   if(!formFields.length&&!legacy)return fail('This registration form has not been configured. Please contact the club.');
   let contact:{name:string;email:string;phone:string};
@@ -148,7 +153,7 @@ async function handle(req:Request){
     if(!['file','photo','masked_aadhaar'].includes(f.type))continue;
     const match=typeof val==='string'&&val.match(/^\/api\/media\/private%2F([a-f0-9-]{36})$/i);
     const object=match&&await fileStorage.head('private/'+match[1]);
-    if(!object||object.customMetadata?.registrationToken!==token||
+    if(!object||object.customMetadata?.registrationToken!==token||object.customMetadata.purpose&&object.customMetadata.purpose!=='registration-document'||
        (f.type==='photo'&&!object.httpMetadata?.contentType?.startsWith('image/')))
       return fail('Please upload a valid file for '+f.label);
   }
@@ -175,10 +180,10 @@ async function handle(req:Request){
   }
   if(!inserted){
     const existing=await registrations(db).findOne({_id:b.id});
-    if(existing){if(existing.token!==token)return fail('Submission already exists',409);return reply(existing,true);}
+    if(existing){if(existing.token!==token)return fail('Submission already exists',409);await fileStorage.claim(existing);await notifyNewRequest(existing);return reply(existing,true);}
     if(manualProof?.transactionId&&await registrations(db).findOne({'data.manualTransactionKey':manualProof.transactionId.toUpperCase()}))return fail('This transaction ID has already been submitted.',409);
     return fail('This event has reached capacity',409);
-  }if(!row)return fail('Registration could not be saved',500);await notifyNewRequest(row);return reply(row)
+  }if(!row)return fail('Registration could not be saved',500);await fileStorage.claim(row);await notifyNewRequest(row);return reply(row)
  }
  if(p==='registration-status'&&req.method==='POST'){
   await rateLimit(req,'status');
@@ -210,7 +215,7 @@ async function handle(req:Request){
        $push:{'data.manualHistory':{$each:[{proof:row.data.manualProof,reviewNote:row.data.manualReviewNote,reviewedAt:row.data.manualReviewedAt}],$slice:-20}}});
     if(!updated.matchedCount)return fail('The payment changed. Refresh its status.',409);
   }catch(error){if((error as {code?:number}).code===11000)return fail('This transaction ID has already been submitted.',409);throw error}
-  const submitted=await registrations(db).findOne({_id:row.id});if(submitted)await notifyRegistration('manual-proof-submitted',submitted);
+  const submitted=await registrations(db).findOne({_id:row.id});if(submitted){await fileStorage.claim(submitted);await notifyRegistration('manual-proof-submitted',submitted);}
   return json({paymentStatus:'manual_pending'});
  }
  if(p==='order'&&req.method==='POST'){
@@ -322,7 +327,7 @@ async function handle(req:Request){
   for(const key of ['manualPayee','manualUpiId','manualInstructions'])if(item[key]!==undefined&&(typeof item[key]!=='string'||item[key].length>1000))return fail('Invalid UPI payment details');
   if(item.registrationMode!==undefined&&(typeof item.registrationMode!=='string'||!(registrationModes as readonly string[]).includes(item.registrationMode)))return fail('Choose a valid tournament registration mode');
   if((['paid','both','manual'].includes(String(item.registrationMode))||item.manualPaymentEnabled===true)&&!(Math.round(Number(item.fee||0)*100)>0))return fail('Set a fee above zero to enable paid registration');
-}for(const k of ['fee','amount','capacity'])if(item[k]!==undefined&&(!Number.isFinite(Number(item[k]))||Number(item[k])<0))return fail('Fees and capacity must be non-negative numbers');for(const k of ['image','url','document'])if(item[k]&&!/^https:\/\//.test(String(item[k]))&&!/^\/(?!\/)/.test(String(item[k])))return fail('Use HTTPS links or uploaded media');if(item.type==='video'&&item.url&&!/^https:\/\/(www\.)?(youtube\.com|youtu\.be|vimeo\.com)\//.test(String(item.url)))return fail('Use a YouTube or Vimeo video link')}}await contentRecords(db).updateOne({_id:b.key},{$set:{value:contentValue,updated:new Date().toISOString()}},{upsert:true});await log(session!.account.username,'Updated '+b.key);return json({saved:true})}
+}for(const k of ['fee','amount','capacity'])if(item[k]!==undefined&&(!Number.isFinite(Number(item[k]))||Number(item[k])<0))return fail('Fees and capacity must be non-negative numbers');for(const k of ['image','url','document'])if(item[k]&&!/^https:\/\//.test(String(item[k]))&&!/^\/(?!\/)/.test(String(item[k])))return fail('Use HTTPS links or uploaded media');if(item.type==='video'&&item.url&&!/^https:\/\/(www\.)?(youtube\.com|youtu\.be|vimeo\.com)\//.test(String(item.url)))return fail('Use a YouTube or Vimeo video link')}}await fileStorage.claimContent(contentValue,false);await contentRecords(db).updateOne({_id:b.key},{$set:{value:contentValue,updated:new Date().toISOString()}},{upsert:true});await fileStorage.claimContent(contentValue);await log(session!.account.username,'Updated '+b.key);return json({saved:true})}
  if(p==='requests'&&req.method==='GET'){const rows=await registrations(db).find({}).sort({created:-1}).limit(5000).toArray();return json(rows.map(visibleRegistration))}
  if(p==='requests'&&req.method==='PUT'){
   const b=await requestObject(req) as {id?:unknown;status?:unknown;notes?:unknown;participantRejectionReason?:unknown};
@@ -345,25 +350,17 @@ async function run(req:Request){
   if(['POST','PUT','DELETE'].includes(req.method)&&req.body){
     const limit=req.headers.get('content-type')?.includes('multipart/form-data')?9*1024*1024:256*1024;
     if(Number(req.headers.get('content-length')||0)>limit)return fail('Request too large',413);
-    const reader=req.body.getReader();
-    const chunks:Uint8Array[]=[];
     let length=0;
-    for(;;){
-      const result=await reader.read();
-      if(result.done)break;
-      length+=result.value.byteLength;
-      if(length>limit){await reader.cancel();return fail('Request too large',413)}
-      chunks.push(result.value);
-    }
-    const body=new Uint8Array(length);
-    let offset=0;
-    for(const chunk of chunks){body.set(chunk,offset);offset+=chunk.length}
-    req=new Request(req,{body});
+    const body=req.body.pipeThrough(new TransformStream<Uint8Array,Uint8Array>({transform(chunk,controller){length+=chunk.byteLength;if(length>limit)throw new RangeError('Request too large');controller.enqueue(chunk);}}));
+    req=new Request(req,{body,duplex:'half'} as RequestInit & {duplex:'half'});
   }
-  return await handle(req);
+  const path=new URL(req.url).pathname;
+  return await (req.method!=='GET'&&!path.startsWith('/api/owner/data/')?withMutationLock(database(),()=>handle(req)):handle(req));
  }catch(err){
   console.error('API error',err instanceof Error?err.name:'unknown');
   if(err instanceof TrackingLimitError)return Response.json({error:err.message},{status:429,headers:{'Cache-Control':'no-store','Retry-After':'600','X-Content-Type-Options':'nosniff'}});
+  if(err instanceof RangeError&&err.message==='Request too large')return fail('Request too large',413);
+  if(err instanceof Error&&err.message==='Maintenance is busy. Retry shortly.')return Response.json({error:'The service is busy. Retry the same submission shortly.'},{status:503,headers:{'Cache-Control':'no-store','Retry-After':'1'}});
   const invalid=err instanceof SyntaxError;
   const limited=err instanceof Error&&err.message.startsWith('Too many requests');
   return fail(invalid?'Invalid request data':limited?err.message:'Unable to complete the request. Please try again.',invalid?400:limited?429:500);

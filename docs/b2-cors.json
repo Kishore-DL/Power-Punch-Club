@@ -1,0 +1,9 @@
+{
+  "CORSRules": [{
+    "AllowedOrigins": ["http://localhost:3000", "https://power-punch-club.onrender.com"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["range", "content-type", "if-none-match"],
+    "ExposeHeaders": ["Content-Type", "Content-Length", "Content-Disposition", "ETag"],
+    "MaxAgeSeconds": 300
+  }]
+}

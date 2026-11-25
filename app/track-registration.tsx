@@ -40,7 +40,7 @@ export default function TrackRegistration(){
         <button className="btn pale" disabled={busy} onClick={()=>work(()=>load(auth!))}>Refresh status</button>
         <button className="btn pale" disabled={busy} onClick={()=>{setRecord(null);setAuth(null);setError('');}}>Track another registration</button></div>
       {record.paymentStatus==='manual_rejected'&&record.status!=='rejected'&&<section><h3>Correct your payment proof</h3>
-        <ManualPaymentFields event={record.event||{}} proof={proof} onChange={setProof} uploading={uploading} onUpload={async file=>{setUploading(true);setError('');try{const form=new FormData();form.set('file',file);if(auth?.token)form.set('registrationToken',auth.token);const result=await call<{url:string}>('upload',form);setProof(current=>({...current,screenshot:result.url}));}catch(e){setError(participantError(e));}finally{setUploading(false);}}}/>
+        <ManualPaymentFields event={record.event||{}} proof={proof} onChange={setProof} uploading={uploading} onUpload={async file=>{setUploading(true);setError('');try{const form=new FormData();form.set('file',file);form.set('purpose','payment-proof');if(auth?.token)form.set('registrationToken',auth.token);const result=await call<{url:string}>('upload',form);setProof(current=>({...current,screenshot:result.url}));}catch(e){setError(participantError(e));}finally{setUploading(false);}}}/>
         <button className="btn red" disabled={busy||uploading} onClick={()=>work(async()=>{await call('manual-proof',{...auth,manualProof:proof});await load(auth!);setProof({transactionId:'',screenshot:''});setMessage('Payment proof submitted for verification.');})}>Resubmit payment proof</button>
       </section>}
     </article>}

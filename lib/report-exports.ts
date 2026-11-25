@@ -1,8 +1,9 @@
+import {B2Store,b2Configuration} from './b2-storage.mjs';
 import {GridFSBucket,ObjectId,type Db} from 'mongodb';
 import {Readable,Transform} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
 import {once} from 'node:events';
-import {randomUUID} from 'node:crypto';
+import {randomUUID,createHash} from 'node:crypto';
 import sharp from 'sharp';
 import ExcelJS from 'exceljs';
 import {mongoClient,contentRecords,duplicateKey} from './mongodb';
@@ -13,7 +14,7 @@ import type {ClubContent} from './club-types';
 import type {Account} from './password-auth';
 import type {ExportStatus,ReportCatalog,ReportQuery,ReportRow} from './report-types';
 
-type Job={_id:string;owner:string;accountKey:string;version:string;requestId:string;active:boolean;status:ExportStatus['status'];format:'xlsx'|'pdf';query:ReportQuery;catalog:ReportCatalog;brand:ClubContent['branding'];title:string;created:Date;expiresAt:Date;leaseUntil?:Date;processed:number;total?:number;error?:string;filename:string;fileId?:ObjectId};
+type Job={_id:string;owner:string;accountKey:string;version:string;requestId:string;active:boolean;status:ExportStatus['status'];format:'xlsx'|'pdf';query:ReportQuery;catalog:ReportCatalog;brand:ClubContent['branding'];title:string;created:Date;expiresAt:Date;leaseUntil?:Date;processed:number;total?:number;error?:string;filename:string;fileId?:ObjectId;b2?:{provider:string;bucketClass:string;objectKey:string;versionId:string;type:string;sha256?:string;size?:number};revokedBy?:string};
 export class ReportBusyError extends Error {}
 const jobs=(db:Db)=>db.collection<Job>('admin_export_jobs');
 const bucket=(db:Db)=>new GridFSBucket(db,{bucketName:'admin_reports'});
@@ -21,7 +22,7 @@ const mime={xlsx:'application/vnd.openxmlformats-officedocument.spreadsheetml.sh
 export const exportStatus=(job:Job):ExportStatus=>({id:job._id,status:job.status,format:job.format,processed:job.processed,total:job.total,error:job.error,filename:job.filename});
 export async function cleanReports(db:Db){
  const expired=await jobs(db).find({expiresAt:{$lt:new Date()}}).limit(10).toArray();
- for(const job of expired){if(job.fileId){await db.collection('admin_reports.files').deleteOne({_id:job.fileId});await db.collection('admin_reports.chunks').deleteMany({files_id:job.fileId});}await jobs(db).deleteOne({_id:job._id,expiresAt:{$lt:new Date()}});}
+ for(const job of expired){if(job.b2){try{await new B2Store().erase('documents',job.b2.objectKey);}catch{continue;}}if(job.fileId){await db.collection('admin_reports.files').deleteOne({_id:job.fileId});await db.collection('admin_reports.chunks').deleteMany({files_id:job.fileId});}await jobs(db).deleteOne({_id:job._id,expiresAt:{$lt:new Date()}});}
 }
 export async function createReportJob(db:Db,account:Account,key:string,query:ReportQuery,catalog:ReportCatalog,content:ClubContent,format:'pdf'|'xlsx',requestId:string){
  await cleanReports(db);
@@ -42,13 +43,18 @@ const filtersText=(job:Job)=>[job.query.search?'Search: '+job.query.search:'',..
 export async function workReportJob(db:Db,id:string){
  const job=await jobs(db).findOneAndUpdate({_id:id,status:'queued',expiresAt:{$gt:new Date()}},{$set:{status:'running',leaseUntil:new Date(Date.now()+10*60000)}},{returnDocument:'after'});
  if(!job)return;
- const upload=bucket(db).openUploadStream(job.filename,{metadata:{owner:job.owner,reportJob:job._id,contentType:mime[job.format]}});
- let written=0;
- const meter=new Transform({transform(chunk,encoding,callback){written+=chunk.length;if(written>50*1024*1024)return callback(Error('Export exceeds 50 MB. Narrow the filters.'));callback(null,chunk);}});
- const transfer=pipeline(meter,upload);transfer.catch(()=>{});
+ const configuration=b2Configuration();
+ if(configuration.enabled&&!configuration.ready){await jobs(db).updateOne({_id:id},{$set:{status:'failed',active:false,error:'B2 configuration is incomplete. No binary fallback was used.'}});return;}
+ const upload=configuration.ready?null:bucket(db).openUploadStream(job.filename,{metadata:{owner:job.owner,reportJob:job._id,contentType:mime[job.format]}});
+ const objectKey='reports/'+randomUUID();
+ // Record pending object before streaming so interrupted uploads remain discoverable.
+ if(!upload)await jobs(db).updateOne({_id:id},{$set:{b2:{provider:'b2',bucketClass:'documents',objectKey,versionId:'',type:mime[job.format]}}});
+ const checksum=createHash('sha256');let written=0;
+ const meter=new Transform({transform(chunk,encoding,callback){written+=chunk.length;checksum.update(chunk);if(written>50*1024*1024)return callback(Error('Export exceeds 50 MB. Narrow the filters.'));callback(null,chunk);}});
+ let versionId='';const transfer=upload?pipeline(meter,upload):new B2Store().stream('documents',objectKey,meter,mime[job.format]).then(version=>{versionId=version;});transfer.catch(()=>{});
  // Always consume stream errors; abort also cleans partially uploaded chunks.
- let uploadError:Error|undefined;upload.on('error',error=>{uploadError=error;});
- await jobs(db).updateOne({_id:id},{$set:{fileId:upload.id}});
+ let uploadError:Error|undefined;upload?.on('error',error=>{uploadError=error;});
+ if(upload)await jobs(db).updateOne({_id:id},{$set:{fileId:upload.id}});
  const session=mongoClient().startSession({snapshot:true});
  let completed=false;
  try{
@@ -92,14 +98,18 @@ export async function workReportJob(db:Db,id:string){
   }
   if(uploadError)throw uploadError;
   if(written>50*1024*1024)throw Error('Export exceeds 50 MB. Narrow the filters.');
+  if(!upload)await new B2Store().verifySize({bucketClass:'documents',objectKey,versionId},written,mime[job.format]);
+  const digest=checksum.digest('hex');
+  const finished=await jobs(db).updateOne({_id:id,status:'running',revokedBy:{$exists:false}},{$set:{status:'complete',active:false,processed,total:processed,...(!upload?{b2:{provider:'b2',bucketClass:'documents',objectKey,versionId,type:mime[job.format],sha256:digest,size:written}}:{})}});
+  if(!finished.matchedCount)throw Error('Export revoked during generation.');
   completed=true;
-  await jobs(db).updateOne({_id:id,status:'running'},{$set:{status:'complete',active:false,processed,total:processed}});
  }catch(error){
   const message=error instanceof Error&&/^(This |No matching|Report |PDF |Export |A cell |Account changed|Sign in|Report headings)/.test(error.message)?error.message:'Export generation failed. Please retry; contact the administrator if it continues.';
-  await jobs(db).updateOne({_id:id},{$set:{status:'failed',active:false,error:message}});
+  await jobs(db).updateOne({_id:id,revokedBy:{$exists:false}},{$set:{status:'failed',active:false,error:message}});
  }finally{
   await session.endSession();
-  if(!completed){meter.destroy();try{await upload.abort();}catch{/* Completed upload is removed below. */}await transfer.catch(()=>{});await db.collection('admin_reports.files').deleteOne({_id:upload.id});await db.collection('admin_reports.chunks').deleteMany({files_id:upload.id});}
+  await jobs(db).updateOne({_id:id},{$unset:{leaseUntil:''}});
+  if(!completed){meter.destroy();try{await upload?.abort();}catch{/* Cleanup below. */}await transfer.catch(()=>{});if(upload){await db.collection('admin_reports.files').deleteOne({_id:upload.id});await db.collection('admin_reports.chunks').deleteMany({files_id:upload.id});}else{try{await new B2Store().erase('documents',objectKey);}catch{/* Durable job reference retained for cleanup. */}}}
  }
 }
 export async function findReportJob(db:Db,id:string,account:Account){
@@ -109,7 +119,11 @@ export async function findReportJob(db:Db,id:string,account:Account){
   await jobs(db).updateOne({_id:id,status:'running'},{$set:{status:'failed',active:false,error:'Export was interrupted. Please start it again.'}});return {...job,status:'failed' as const,error:'Export was interrupted. Please start it again.'};
  }return job;
 }
-export function reportDownload(db:Db,job:Job){
+export async function reportDownload(db:Db,job:Job){
+ if(job.status!=='complete'&&!job.revokedBy)return Response.json({error:'Export is not ready.'},{status:409,headers:{'Cache-Control':'private, no-store'}});
+ const current=await jobs(db).findOne({_id:job._id,status:'complete',revokedBy:{$exists:false}});
+ if(!current)return Response.json({error:'Export revoked or unavailable.'},{status:410,headers:{'Cache-Control':'private, no-store'}});
+ if(current.b2)return new Response(await new B2Store().open(current.b2),{headers:{'Content-Type':mime[job.format],'Content-Disposition':'attachment; filename="'+job.filename+'"','Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});
  if(job.status!=='complete'||!job.fileId)return Response.json({error:'Export is not ready.'},{status:409,headers:{'Cache-Control':'private, no-store'}});
  const stream=bucket(db).openDownloadStream(job.fileId);
  return new Response(Readable.toWeb(stream) as ReadableStream,{headers:{'Content-Type':mime[job.format],'Content-Disposition':`attachment; filename="${job.filename}"`,'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'}});

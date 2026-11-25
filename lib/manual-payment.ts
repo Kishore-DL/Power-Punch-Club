@@ -15,7 +15,7 @@ export async function validateManualProof(value: unknown, token: string): Promis
   if (screenshot) {
     const match = /^\/api\/media\/private%2F([a-f0-9-]{36})$/i.exec(screenshot);
     const file = match && await fileStorage.head('private/' + match[1]);
-    if (!file || file.customMetadata?.registrationToken !== token || !file.httpMetadata.contentType.startsWith('image/')) {
+    if (!file || file.customMetadata?.registrationToken !== token || !file.httpMetadata.contentType.startsWith('image/') || file.customMetadata.purpose&&file.customMetadata.purpose!=='payment-proof') {
       throw new Error('Upload a valid payment screenshot for this registration.');
     }
   }

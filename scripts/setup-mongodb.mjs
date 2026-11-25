@@ -22,11 +22,16 @@ try {
       {key:{'data.manualTransactionKey':1},name:'unique_manual_transaction',unique:true,partialFilterExpression:{'data.manualTransactionKey':{$type:'string'}}},
     ]),
     db.collection('auth_sessions').createIndex({expiresAt:1},{expireAfterSeconds:0}),
+    db.collection('maintenance_waiters').createIndex({order:1}),
+    db.collection('maintenance_waiters').createIndex({expiresAt:1},{expireAfterSeconds:0}),
     db.collection('limits').createIndex({expiresAt:1},{expireAfterSeconds:0}),
     db.collection('audit').createIndex({created:-1}),
     db.collection('admin_export_jobs').createIndex({owner:1,requestId:1},{unique:true,name:'report_request_idempotency'}),
     db.collection('admin_export_jobs').createIndex({owner:1,active:1},{unique:true,partialFilterExpression:{active:true},name:'one_active_export_per_admin'}),
     db.collection('admin_export_jobs').createIndex({expiresAt:1},{name:'report_expiry_cleanup'}),
+    db.collection('data_delete_confirmations').createIndex({expiresAt:1},{expireAfterSeconds:0}),
+    db.collection('data_deletion_jobs').createIndex({status:1,created:-1}),
+    db.collection('files').createIndex({provider:1,claimed:1,expiresAt:1},{name:'unclaimed_file_cleanup'}),
     db.collection('outbox').createIndex({status:1,created:1}),
   ]);
   const skipped=await skipIneligibleOutbox(db);

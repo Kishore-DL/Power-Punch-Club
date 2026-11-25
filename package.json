@@ -19,9 +19,15 @@
     "test:registration:env": "node scripts/create-registration-test-env.mjs",
     "test:pdf": "node tests/pdf-rendering.mjs",
     "test:pdf:layout": "node tests/pdf-layout.mjs",
-    "test:email": "node --env-file=.env.registration-test tests/brevo-notifications.mjs"
+    "test:email": "node --env-file=.env.registration-test tests/brevo-notifications.mjs",
+    "test:storage": "node scripts/run-storage-regression.mjs",
+    "storage:check": "node --env-file-if-exists=.env scripts/b2-maintenance.mjs check",
+    "storage:inventory": "node --env-file-if-exists=.env scripts/b2-maintenance.mjs inventory"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1177.0",
+    "@aws-sdk/lib-storage": "^3.1177.0",
+    "@aws-sdk/s3-request-presigner": "^3.1177.0",
     "@base-ui/react": "^1.7.0",
     "@hookform/resolvers": "^5.7.1",
     "@pdf-lib/fontkit": "^1.1.1",

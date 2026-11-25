@@ -15,7 +15,7 @@ async function api(path,body,cookie,method=body?'POST':'GET'){
   return {status:r.status,data:await r.json(),cookie:r.headers.getSetCookie().find(value=>value.includes('_session_v2='))?.split(';')[0]};
 }
 const bytes=await readFile('public/power-punch-logo.webp');
-async function upload(cookie,token){const form=new FormData();form.set('file',new Blob([bytes],{type:'image/webp'}),'fixture.webp');form.set('scope',token?'private':'public');if(token)form.set('registrationToken',token);const result=await api('upload',form,cookie);assert.equal(result.status,200);return result.data.url;}
+async function upload(cookie,token){const form=new FormData();form.set('file',new Blob([bytes],{type:'image/webp'}),'fixture.webp');form.set('scope',token?'private':'public');if(token){form.set('registrationToken',token);form.set('purpose','payment-proof');}const result=await api('upload',form,cookie);assert.equal(result.status,200);return result.data.url;}
 const entry=extra=>({id:randomUUID(),token:randomUUID(),kind:'tournament',target:'submission-ui',registrationChoice:'manual',name:'Proof preview fixture',email:'preview@example.invalid',phone:'9999999999',consent:true,...extra});
 let owner,original;
 try{
